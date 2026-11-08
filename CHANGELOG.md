@@ -1,3 +1,11 @@
+## 0.2.3 — local only
+
+- Integrate the secure-button hold-and-sweep path into the actual addon and normal /fv settings.
+- Remove direct marking calls from the actual addon; preconfigure fixed-icon buttons outside combat.
+- Preserve existing-mark checks, free-icon checks, icon order, reserved attempts and legacy action-slot recovery.
+- Stop on a blocked or visibly failed request. Add /fv report and /fv off.
+- Keep artifacts local. Native synthetic-click permission remains unverified; this is not a claim that the requested gesture works in Forever.
+
 ## 0.2.2
 
 - Restore /fv settings access with mouse-button and icon-order controls.

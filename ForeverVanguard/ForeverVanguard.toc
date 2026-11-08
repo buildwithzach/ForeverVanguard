@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: Forever Vanguard
-## Notes: One-button mouseover icon cycling; configure in Options > AddOns.
+## Notes: Hold-button mouseover marking; /fv settings. Local secure-route validation pending.
 ## Author: buildwithzach
-## Version: 0.2.0-alpha.1
+## Version: 0.2.3
 ## X-Curse-Project-ID: 1790107
 ## X-Website: https://www.curseforge.com/wow/addons/forever-vanguard
 ## SavedVariables: ForeverVanguardDB

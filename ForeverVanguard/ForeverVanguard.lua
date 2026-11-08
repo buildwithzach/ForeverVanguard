@@ -1,6 +1,6 @@
--- One hardware press, one living hostile mouseover, one unused raid icon.
+-- Local secure-button hold/sweep implementation; native authorization is unverified.
 local addonName = ...
-local V = { status = "Hover an enemy and press Mouse 4.", controls = {} }
+local V = { status = "Hold Mouse 4 and move across enemies.", controls = {} }
 ForeverVanguard = V
 local defaults = {8, 7, 6, 5, 4, 3, 2, 1}
 local names = {"Star", "Circle", "Diamond", "Triangle", "Moon", "Square", "Cross", "Skull"}
@@ -21,8 +21,9 @@ local function message(text, notify)
   end
 end
 local function validKey(key)
-  return type(key) == "string" and #key <= 60 and key:match("^[A-Z0-9%-]+$")
-    and key ~= "BUTTON1" and key ~= "BUTTON2" and key ~= "ESCAPE"
+  if type(key) ~= "string" then return false end
+  local rest = key:gsub("ALT%-", ""):gsub("CTRL%-", ""):gsub("SHIFT%-", "")
+  return rest == "BUTTON3" or rest == "BUTTON4" or rest == "BUTTON5"
 end
 local function keyLabel(key)
   return key and (GetBindingText(key, "KEY_") or key) or "Not bound"
@@ -31,7 +32,6 @@ function V.ApplyBinding()
   if not V.button then return end
   if locked() then V.pendingBinding = true; return end
   V.pendingBinding = nil
-  ClearOverrideBindings(V.button)
   V.activeKey = nil
   local key = ForeverVanguardDB.key
   if key then
@@ -39,18 +39,18 @@ function V.ApplyBinding()
     if existing and existing ~= "" and existing ~= command then
       message(keyLabel(key) .. " is already bound. Choose another key in Vanguard settings.")
     else
-      SetOverrideBindingClick(V.button, false, key, "ForeverVanguardCycle", "LeftButton")
       V.activeKey = key
-      message("Hover an enemy and press " .. keyLabel(key) .. ".")
+      message("Hold " .. keyLabel(key) .. " and sweep. Secure marking needs live validation.")
     end
   else
     message("Choose a marking key.")
   end
+  if not ForeverVanguardDB.enabled then message("Marking disabled. Open /fv report for any blocked-action details.") end
   V.RefreshSettings()
 end
 function V.SetKey(key)
   if locked() then return false, "Change the key after combat." end
-  if key ~= false and not validKey(key) then return false, "Use a keyboard key or mouse side button." end
+  if key ~= false and not validKey(key) then return false, "Use Mouse 3, 4 or 5, optionally with Alt/Ctrl/Shift." end
   if key then
     local existing = GetBindingAction(key, true)
     if existing and existing ~= "" and existing ~= command then
@@ -75,7 +75,8 @@ function V.SetIconEnabled(icon, enabled)
   V.RefreshSettings()
 end
 function V.NewBatch()
-  if locked() then return false end
+  if locked() or V.held then return false end
+  V.seen = {}
   ForeverVanguardCycleDB.reserved = {}
   message("New batch. Icons still in use will be skipped.")
   V.RefreshSettings()
@@ -84,7 +85,6 @@ end
 -- Fail closed on secrets, missing APIs and errors. Never infer success from a
 -- RAID_TARGET_UPDATE event: another player may have caused it.
 function V.Plan()
-  if locked() then return nil, "Cycling is available out of combat only." end
   if not ForeverVanguardDB.enabled then return nil, "Marking is disabled." end
   local ok, unit = public(SecureCmdOptionParse, "[@mouseover,harm,nodead] mouseover; none")
   if not ok or unit ~= "mouseover" then return nil, "Hover a living enemy first." end
@@ -112,19 +112,70 @@ function V.Plan()
   return nil, eligible and "No unused icons left. Start a new batch in settings after clearing old marks."
     or "Enable at least one icon in Vanguard settings."
 end
-local function prepare(self, _, down)
-  if down then return end -- release only, independent of ActionButtonUseKeyDown
-  if locked() then message("Cycling is available out of combat only.", true); return end
-  self:SetAttribute("unit", "none")
-  local icon, reason = V.Plan()
-  if not icon then message(reason, true); return end
-  -- Reserve attempts, not claimed successes. Stops latency/rejected requests from
-  -- causing an icon to be reused. New batch releases reservations, never live marks.
-  ForeverVanguardCycleDB.reserved[icon] = true
-  self:SetAttribute("marker", icon)
-  self:SetAttribute("unit", "mouseover")
-  message(names[icon] .. " requested. Existing marks are preserved.")
+function V.Log(value)
+  if not ForeverVanguardCycleDB then return end
+  local log = ForeverVanguardCycleDB.log
+  log[#log + 1] = string.format("%.2f combat=%s %s", GetTime(), tostring(locked()), value)
+  if #log > 200 then table.remove(log, 1) end
+end
+function V.StopBlocked(reason)
+  ForeverVanguardDB.enabled = false
+  V.held = false
+  V.Log("BLOCKED " .. reason)
+  message("Forever blocked secure marking. Disabled; /fv report has details.", true)
   V.RefreshSettings()
+end
+local function completeAttempt()
+  local attempt = V.pending
+  if not attempt then return end
+  V.pending = nil
+  local known, guid = public(UnitGUID, "mouseover")
+  if not known or guid ~= attempt.guid then V.Log("UNVERIFIED: mouseover changed"); return end
+  local readable, mark = public(GetRaidTargetIndex, "mouseover")
+  if not readable then V.Log("UNVERIFIED: marker hidden"); return end
+  if mark == attempt.icon then
+    V.Log("CONFIRMED icon=" .. attempt.icon)
+    message(names[attempt.icon] .. " confirmed.")
+  else
+    V.Log("NOT APPLIED icon=" .. attempt.icon)
+    -- A silent rejection must not burn through the other seven icons.
+    V.StopBlocked("secure request did not apply")
+  end
+end
+function V.Poll()
+  if not V.button then return end
+  if V.pending and GetTime() - V.pending.at >= 0.2 then completeAttempt() end
+  local key = V.activeKey
+  local down = false
+  if ForeverVanguardDB.enabled and key and not V.capturing and not V.panel:IsShown() then
+    local number = key:match("BUTTON(%d)$")
+    local known, pressed = public(IsMouseButtonDown, "Button" .. number)
+    down = known and pressed
+      and (not not IsAltKeyDown()) == (key:find("ALT-", 1, true) ~= nil)
+      and (not not IsControlKeyDown()) == (key:find("CTRL-", 1, true) ~= nil)
+      and (not not IsShiftKeyDown()) == (key:find("SHIFT-", 1, true) ~= nil)
+  end
+  if down ~= V.held then
+    V.held = down
+    if down then V.seen = {}; V.Log("HOLD start route=secure") else V.Log("HOLD end") end
+  end
+  if not down then return end
+  local known, guid = public(UnitGUID, "mouseover")
+  if not known or not guid or V.seen[guid] then return end
+  V.seen[guid] = true
+  local icon, reason = V.Plan()
+  if not icon then message(reason); V.Log("SKIP " .. reason); return end
+  completeAttempt()
+  if not ForeverVanguardDB.enabled then return end
+  ForeverVanguardCycleDB.reserved[icon] = true
+  V.pending = {guid = guid, icon = icon, at = GetTime()}
+  V.Log("ATTEMPT route=secure icon=" .. icon)
+  -- No direct SetRaidTarget, macro or protected attribute writes here.
+  -- This remains a synthetic click: only the real client can establish permission.
+  V.attempting = true
+  local ok = pcall(V.buttons[icon].Click, V.buttons[icon], "LeftButton", false)
+  V.attempting = false
+  if not ok then V.StopBlocked("secure button call raised an error") end
 end
 local function text(parent, value, x, y, width, font)
   local label = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
@@ -141,8 +192,9 @@ function V.RefreshSettings()
   if not V.panel then return end
   local db = ForeverVanguardDB
   for _, c in ipairs(V.controls) do c:SetEnabled(not locked()) end
+  V.enabledButton:SetEnabled(true)
   V.enabledButton:SetText(db.enabled and "Enabled" or "Disabled")
-  V.keyButton:SetText(V.capturing and "Press a key / mouse button…" or keyLabel(db.key))
+  V.keyButton:SetText(V.capturing and "Press Mouse 3 / 4 / 5…" or keyLabel(db.key))
   for i, row in ipairs(V.rows) do
     local icon = db.order[i]
     row.label:SetText(i .. ".  |TInterface\\TargetingFrame\\UI-RaidTargetingIcon_" .. icon .. ":18|t " .. names[icon])
@@ -169,17 +221,16 @@ end
 local function settings()
   local p = CreateFrame("Frame"); p.name = "Forever Vanguard"; p:Hide(); V.panel = p
   text(p, "Forever Vanguard", 16, -16, 500, "GameFontNormalLarge")
-  text(p, "Hover an enemy. Press your marking button. Move to the next enemy.", 16, -48, 560)
-  text(p, "Out of combat only. Pauses where Forever hides available icons.\nAlready-marked mobs are skipped. No macros, target changes or toolbar.", 16, -72, 570)
+  text(p, "Hold your mouse button and move across enemies. Release to stop.", 16, -48, 560)
+  text(p, "Secure hold-and-sweep: awaiting live validation.\nSkips occupied/hidden icons; stops if Forever rejects marking.", 16, -72, 570)
   V.enabledButton = control(p, "Enabled", 16, -116, 100, function()
-    if locked() then return end
-    ForeverVanguardDB.enabled = not ForeverVanguardDB.enabled; V.RefreshSettings()
+    ForeverVanguardDB.enabled = not ForeverVanguardDB.enabled; V.held = false; V.RefreshSettings()
   end)
   text(p, "Marking key", 16, -156, 100)
   V.keyButton = control(p, "", 130, -150, 250, function()
     if locked() then return end
     V.capturing = true; p:EnableKeyboard(true); p:SetPropagateKeyboardInput(false); p:EnableMouse(true)
-    message("Press your preferred key or mouse side button. Escape cancels."); V.RefreshSettings()
+    message("Press Mouse 3, 4 or 5 with optional modifiers. Escape cancels."); V.RefreshSettings()
   end)
   control(p, "Unbind", 390, -150, 85, function() V.SetKey(false) end)
   p:SetScript("OnKeyDown", function(_, key) V.CaptureKey(key) end)
@@ -236,21 +287,21 @@ local function build()
     for icon = 1, 8 do if ForeverVanguardCycleDB.reserved[icon] == true then reserved[icon] = true end end
   end
   ForeverVanguardCycleDB.reserved = reserved
-  local b = CreateFrame("Button", "ForeverVanguardCycle", UIParent, "SecureActionButtonTemplate,SecureHandlerBaseTemplate")
-  V.button = b
-  b:SetSize(1, 1); b:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 10000); b:SetAlpha(0); b:EnableMouse(false)
-  b:RegisterForClicks("AnyUp"); b:SetAttribute("useOnKeyDown", false)
-  b:SetAttribute("*type1", "raidtarget"); b:SetAttribute("action", "set-unmarked"); b:SetAttribute("unit", "none")
-  b:SetScript("PreClick", prepare)
-  -- Combat may start after arming: a secure guard always makes the click inert.
-  b:WrapScript(b, "OnClick", [[
-    if SecureCmdOptionParse("[combat] stop; go") == "stop" then
-      self:SetAttribute("unit", "none")
-    end
-  ]])
-  b:SetScript("PostClick", function(self)
-    if not locked() then self:SetAttribute("unit", "none") end
-  end)
+  ForeverVanguardCycleDB.log = type(ForeverVanguardCycleDB.log) == "table" and ForeverVanguardCycleDB.log or {}
+  V.seen = {}
+  V.buttons = {}
+  for icon = 1, 8 do
+    local b = CreateFrame("Button", "ForeverVanguardSecure" .. icon, UIParent, "SecureActionButtonTemplate")
+    b:SetSize(1, 1); b:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 10000)
+    b:SetAlpha(0); b:EnableMouse(false); b:RegisterForClicks("AnyUp")
+    b:SetAttribute("useOnKeyDown", false)
+    b:SetAttribute("type", "raidtarget"); b:SetAttribute("action", "set-unmarked")
+    b:SetAttribute("unit", "mouseover"); b:SetAttribute("marker", icon)
+    V.buttons[icon] = b
+  end
+  V.button = V.buttons[1]
+  local _, clientBuild = GetBuildInfo()
+  V.Log("SESSION 0.2.3 build=" .. clientBuild .. " route=secure")
   settings(); V.ApplyBinding()
 end
 local version, _, _, interface = GetBuildInfo()
@@ -258,23 +309,48 @@ V.supported = version == "1.60.1" and interface == 16001
 if not V.supported then return end
 SLASH_FOREVERVANGUARD1 = "/fv"
 SLASH_FOREVERVANGUARD2 = "/vanguard"
-SlashCmdList.FOREVERVANGUARD = function()
+SlashCmdList.FOREVERVANGUARD = function(commandText)
+  if commandText == "off" then
+    if ForeverVanguardDB then ForeverVanguardDB.enabled = false; V.held = false; V.RefreshSettings() end
+    return
+  elseif commandText == "report" and ForeverVanguardCycleDB then
+    local f = CreateFrame("Frame", nil, UIParent, "BasicFrameTemplateWithInset")
+    f:SetSize(650, 450); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG")
+    f.TitleText:SetText("Forever Vanguard — diagnostic report")
+    local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 15, -35); scroll:SetPoint("BOTTOMRIGHT", -35, 15)
+    local edit = CreateFrame("EditBox", nil, scroll)
+    edit:SetMultiLine(true); edit:SetFontObject(ChatFontNormal); edit:SetWidth(590)
+    edit:SetAutoFocus(false); edit:SetText(table.concat(ForeverVanguardCycleDB.log, "\n"))
+    scroll:SetScrollChild(edit); edit:SetFocus(); edit:HighlightText()
+    edit:SetScript("OnEscapePressed", function() f:Hide() end)
+    return
+  end
   if V.category then Settings.OpenToCategory(V.category:GetID()) end
 end
 local events = CreateFrame("Frame")
-for _, event in ipairs({"ADDON_LOADED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "UPDATE_BINDINGS", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN"}) do events:RegisterEvent(event) end
+for _, event in ipairs({"ADDON_LOADED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "UPDATE_BINDINGS", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "UPDATE_MOUSEOVER_UNIT"}) do events:RegisterEvent(event) end
 events:SetScript("OnEvent", function(_, event, name, action)
   if event == "ADDON_LOADED" then
     if name ~= addonName or V.button then return end
     if locked() then V.waiting = true else build() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     if V.waiting then V.waiting = nil; build()
-    elseif V.button then V.button:SetAttribute("unit", "none"); V.ApplyBinding() end
+    elseif V.button then V.ApplyBinding() end
   elseif event == "PLAYER_REGEN_DISABLED" then
     V.StopCapture(); V.RefreshSettings()
   elseif event == "UPDATE_BINDINGS" then
     V.ApplyBinding()
-  elseif name == addonName then
-    message("Marking was blocked by the client: " .. tostring(action), true)
+  elseif event == "UPDATE_MOUSEOVER_UNIT" then
+    V.Poll()
+  elseif V.button and (name == addonName or V.attempting) then
+    local detail = (issecretvalue and issecretvalue(action)) and "hidden action" or tostring(action)
+    V.StopBlocked(event .. " " .. detail)
   end
+end)
+
+local elapsed = 0
+events:SetScript("OnUpdate", function(_, dt)
+  elapsed = elapsed + dt
+  if elapsed >= 0.03 then elapsed = 0; V.Poll() end
 end)

@@ -1,91 +1,25 @@
-> **0.2.2:** `/fv` opens settings again. Hold-and-sweep starts disabled following a live Blizzard-only action block; that restriction is unresolved. See [release notes](publishing/release-0.2.2.md).
-
-> **0.2.1 Alpha:** The current experimental hold-Mouse-4 sweep package is built with `experiments/hold-sweep/build.py` and installs as `ForeverVanguard`. See [release notes](publishing/release-0.2.1.md). Live Forever marking remains unverified. The main addon directory below retains the previous click-per-mob implementation while the experiment is evaluated.
-
 # Forever Vanguard
 
-**0.2.0-alpha.1 — WoW Forever 1.60.1 / Interface 16001**
+Local development version 0.2.3 for WoW Forever 1.60.1. This is the actual `ForeverVanguard` addon, with its normal `/fv` settings. It has not been uploaded.
 
-Hover an enemy and press **Mouse 4**. Move to another enemy and press it again.
-Vanguard requests the next unused raid icon without changing your target or creating macros.
+## Controls
 
-**Out of combat only.** Cycling pauses in areas where Forever hides available icons.
-This is an installable test build: actual Forever input, secure execution and appearance
-are not yet verified. Offline tests cannot establish in-game compatibility.
+Hold Mouse 4 and move across living hostile mobs. Release to stop. `/fv` opens Options > AddOns > Forever Vanguard. Configure Mouse 3/4/5 with optional Alt/Ctrl/Shift, change icon order, disable individual icons, or disable marking. Other game bindings are preserved; choose an unused button. Close settings before sweeping.
 
-## Setup
+The addon preconfigures eight secure raid-target buttons outside combat. Mouseover changes while the chosen button is held request a synthetic click on the selected button. There are no direct SetRaidTarget calls, user macros, or click-per-mob fallback.
 
-1. Extract the ZIP into your Forever client's `Interface/AddOns` folder. The manifest
-   should be `Interface/AddOns/ForeverVanguard/ForeverVanguard.toc`.
-2. Restart/reload WoW. **Mouse 4** is selected automatically if it is unbound. Existing
-   bindings are never replaced. If it is occupied, choose another key in settings.
-3. Open **Options → AddOns → Forever Vanguard**, or type **/fv**.
+**The real client may reject synthetic secure-button clicks. Merely using a secure button does not grant hardware-input permission. This route has not been validated in Forever.** Version 0.2.1's direct route was forbidden on build 70862; that route is removed from this addon. Local tests are not evidence that the native client accepts the new route.
 
-There is no toolbar, floating panel, attack attachment, macro setup or modifier-specific
-icon mapping. `/fv` opens the native settings category.
+## Icon protection
 
-## Marking
+Already-marked mobs are skipped. Each candidate icon must be reported free by the client, including icons on mobs outside your current mouseover. Attempts are reserved across reloads, and the cycle never wraps to a used icon. If marker information is secret or unavailable, marking pauses rather than guessing. Group members assigning icons concurrently remain a server-side race; use one marker during validation.
 
-The default order is **Skull → Cross → Square → Moon → Triangle → Diamond → Circle → Star**.
-Each press/release handles the living hostile mob under your cursor, with no target fallback.
-The button acts on release, so keep your mouse on the mob until you release it.
+Start new batch releases reservations outside combat after releasing the button; it does not clear live marks. Any blocked action during the request disables marking. A readable failed confirmation also disables it, avoiding repeated blocked calls. Enable again in `/fv` only when ready to retry.
 
-- Already-marked mobs are left unchanged. Repeated presses on a marked mob do not advance.
-- Icons reported in use anywhere are skipped, including other players' marks.
-- After every enabled icon has been used or reserved, marking stops. It never wraps and
-  deliberately moves a previous icon to another mob.
-- Your settings page lets you change the hotkey, reorder the icons and turn individual
-  icons on/off. Changes are available out of combat.
-- **Start new batch** releases the addon's reservations. It does not clear real marks;
-  icons the client still reports in use remain unavailable. No automatic combat/zone reset.
-- A request reserves its icon even if the server rejects it. This conservative behavior
-  avoids reusing it while a previous request is pending. Start a new batch to retry after
-  checking your marks and permissions. “Requested” does not mean success was confirmed.
+## Installation and validation
 
-Marking requires the normal group permissions; raid leaders and assistants can mark.
-A custom unit-frame addon may consume Mouse 4 before a global binding receives it. Test
-world models and enemy nameplates on the actual client; changing to a keyboard key can
-help diagnose input interception.
+Replace the old `ForeverVanguard` folder with the folder from the local ZIP. Disable/remove the earlier separate `ForeverVanguardSweepTest` addon. Restart or reload after installation. Old normal settings are preserved; a previously disabled normal addon stays disabled.
 
-## Forever limits
+`/fv report` opens a copyable diagnostic report. `/fv off` stops marking, including in combat. Reports record secure attempts and distinguish confirmed markers, rejected requests, and unreadable or changed mouseover results. They are saved per character after reload/logout.
 
-The marker itself is placed by Blizzard's secure `raidtarget` action with `set-unmarked`.
-Vanguard never calls `SetRaidTarget` directly. Before arming it, the addon checks
-`GetRaidTargetIndex` and `GetNextAvailableRaidTargetMarkerIndex` for public results.
-If these values are secret, unavailable or invalid, the action stays inert.
-
-Selecting the next unused icon cannot be done with the verified restricted snippet API
-in combat, so this build does not offer combat cycling. It never falls back to a blind
-counter or substitutes a fixed icon. A secure combat guard also prevents an already
-prepared request from firing after combat begins.
-
-The availability check and server assignment are separate operations. Another player's
-simultaneous marking can race that check; this build cannot provide an atomic server-side
-reservation across players. The persisted per-character reservation list prevents reuse
-of this addon's own attempted icons across reloads.
-
-## Upgrading from 0.1.x
-
-Old macro creation and attack attachment have been removed. Existing macros and attack
-slots are not automatically modified. If an older build attached marking to an attack,
-settings shows **Restore old attack buttons**. It restores saved spell IDs/ranks only
-where the original generated macro and slot still match; newer edits are preserved.
-Generated macros are retained, but no longer created or used by the new marking flow.
-
-The old toolbar and modifier bindings are retired. The new default is Mouse 4, not the
-old optional F-key shortcut. Your unrelated WoW binding profile is unchanged.
-
-## Validation
-
-Run `python tests/test_vanguard.py` with Python 3 and `lupa`, then `python build.py`.
-The builder checks the source and the extracted ZIP and writes a SHA-256 sidecar.
-Tests run the actual pinned Blizzard Lua dispatcher with modeled native APIs. They cover
-allocation, exhaustion, repeated mobs, occupied icons, secrets, combat guards, key conflicts,
-settings, persisted reservations and recovery of older attack slots.
-
-See **TESTING.md** for required real-client acceptance. Remains Alpha until it passes.
-
-Source evidence:
-- Forever secure dispatcher: https://github.com/Gethe/wow-ui-source/blob/9dc84f0d3bbae1768ac3405b3716000bd93eda06/Interface/AddOns/Blizzard_FrameXML/SecureTemplates.lua
-- Forever restricted API: https://github.com/Gethe/wow-ui-source/blob/9dc84f0d3bbae1768ac3405b3716000bd93eda06/Interface/AddOns/Blizzard_RestrictedAddOnEnvironment/RestrictedEnvironment.lua
-- Forever marker API: https://github.com/Gethe/wow-ui-source/blob/9dc84f0d3bbae1768ac3405b3716000bd93eda06/Interface/AddOns/Blizzard_APIDocumentationGenerated/RaidMarkersDocumentation.lua
+Run `python build.py` using Python with `lupa` installed. The build tests source and extracted ZIP, and writes only to `dist/local-only`. The isolated historical probe cannot be packaged as the normal addon by its builder.
