@@ -1,135 +1,117 @@
-"""Real addon + pinned Blizzard Lua dispatcher. Native permissions are mocked.
-Permissive cases test flow only; the rejection case models the likely restriction.
-"""
+"""Hardware-click flow through pinned Blizzard Lua; native trust remains modeled."""
 import unittest
 from pathlib import Path
 from lupa.lua51 import LuaRuntime
 ROOT=Path(__file__).resolve().parents[1]
 class VanguardTests(unittest.TestCase):
- def client(self, allow=True, setup=''):
+ def client(self, setup=''):
   l=LuaRuntime(unpack_returned_tuples=True)
   for f in ['tests/mock.lua','tests/native_dispatch.lua','tests/fixtures/BlizzardSecureTemplates.lua']:
    l.execute((ROOT/f).read_text())
   l.execute('''
-M.secret={}; M.time=0; M.clicks=0
+M.secret={}; M.time=0
 function UnitGUID(u) return M.units[u] and M.units[u].guid end
 function UnitIsDeadOrGhost(u) return M.units[u] and M.units[u].dead end
-function IsMouseButtonDown(b) return M.down==b end
 local methods=getmetatable(UIParent).__index
 function methods:SetScrollChild(child) self.child=child end
-function methods:Click(button,down)
- M.clicks=M.clicks+1
- if not M.allowHover then M.emit('ADDON_ACTION_FORBIDDEN','ForeverVanguard','Button:Click()'); return end
- -- Hypothetical permission only; never evidence that Forever permits this.
- M.secure=true;M.hardware=true
- SecureActionButton_OnClick(self,button,down)
- M.secure=false;M.hardware=false
+function methods:Click() error('Synthetic clicks are forbidden') end
+function SecureHandlerWrapScript(frame,event,owner,body)
+ owner:WrapScript(frame,event,body)
 end
-function step(guid,button)
+function hover(guid)
  M.units.mouseover=guid and {guid=guid,hostile=true,dead=false} or nil
- M.down=button;M.time=M.time+0.3
+ M.time=M.time+0.3
+ M.emit('UPDATE_MOUSEOVER_UNIT')
  for _,f in ipairs(M.frames) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f,0.3) end end
 end
+function click(guid,key)
+ hover(guid);M.key(key or 'BUTTON4')
+end
 ''')
-  l.execute(setup);g=l.globals();g.M.allowHover=allow
+  l.execute(setup)
   for f in ['ForeverVanguard/ForeverVanguard.lua','ForeverVanguard/AbilityActions.lua']:
    l.execute((ROOT/f).read_text(),'ForeverVanguard')
-  g.M.emit('ADDON_LOADED','ForeverVanguard')
+  g=l.globals();g.M.emit('ADDON_LOADED','ForeverVanguard')
   self.l,self.lua,self.g=l,l,g
   return g
- def test_parser_failure_does_not_reject_attackable_living_unit(self):
-  for expression in ["return 'none'", "error('unavailable')", "return M.secret"]:
-   g=self.client(setup='function SecureCmdOptionParse() '+expression+' end')
-   g.step('A','Button4');self.assertEqual(g.M.clicks,1)
- def test_transient_eligibility_failure_retries_same_hover_without_repress(self):
-  g=self.client();self.l.execute("function UnitCanAttack() return M.attackable end")
-  g.M.attackable=False;g.step('A','Button4');g.step('A','Button4')
-  self.assertEqual(g.M.clicks,0)
-  skips=[line for line in g.ForeverVanguardCycleDB.log.values() if 'not attackable' in line]
-  self.assertEqual(len(skips),1)
-  g.M.attackable=True;g.step('A','Button4');self.assertEqual(g.M.clicks,1)
- def test_dead_friendly_and_secret_units_are_not_marked(self):
+ def test_physical_binding_one_click_per_mob_no_sweep(self):
+  g=self.client();g.hover('A');self.assertIsNone(g.M.assignments.A)
+  g.click('A');g.hover('B');g.hover('C')
+  self.assertEqual(g.M.assignments.A,8);self.assertIsNone(g.M.assignments.B)
+  g.click('B');self.assertEqual(g.M.assignments.B,7)
+  self.assertEqual(g.M.markerCalls,2)
+  self.assertIsNone(g.ForeverVanguard.button.GetAttribute(g.ForeverVanguard.button,'type'))
+ def test_combat_clicks_do_nothing_and_resume_after_combat(self):
+  g=self.client();g.click('A');g.M.combat=True;g.M.emit('PLAYER_REGEN_DISABLED')
+  g.click('B');g.click('C');self.assertEqual(g.M.markerCalls,1)
+  g.M.combat=False;g.M.emit('PLAYER_REGEN_ENABLED');g.click('B')
+  self.assertEqual(g.M.assignments.A,8);self.assertEqual(g.M.assignments.B,7)
+ def test_combat_start_after_preparation_cannot_use_stale_marker(self):
+  g=self.client();g.M.combatAfterPreClick=True;g.click('A')
+  self.assertIsNone(g.M.assignments.A)
+  g.click('B');self.assertIsNone(g.M.assignments.B)
+ def test_existing_and_unseen_marks_preserved(self):
+  g=self.client();g.M.assignments.unseen=8;g.M.assignments.A=5
+  g.click('A');g.click('B')
+  self.assertEqual(g.M.assignments.A,5);self.assertEqual(g.M.assignments.unseen,8)
+  self.assertEqual(g.M.assignments.B,7)
+ def test_eight_marks_no_wrap_or_replacement_on_repeat(self):
+  g=self.client()
+  for n in range(10):g.click(str(n))
+  g.click('0');self.assertEqual(g.M.markerCalls,8)
+  self.assertEqual(g.M.assignments['0'],8)
+ def test_secret_or_failed_queries_skip(self):
+  for key in ['secretMarker','secretAvailability','availabilityError']:
+   g=self.client();g.M[key]=True;g.click('A');self.assertIsNone(g.M.markerCalls)
+ def test_invalid_targets_skip(self):
   for override in ["function UnitIsDeadOrGhost() return true end",
                    "function UnitCanAttack() return false end",
                    "function UnitCanAttack() return M.secret end",
-                   "function UnitIsDeadOrGhost() return M.secret end",
-                   "function UnitExists() return M.secret end"]:
-   g=self.client(setup=override);g.step('A','Button4');self.assertEqual(g.M.clicks,0)
- def test_no_guid_reason_is_reported_once(self):
-  g=self.client();g.step(None,'Button4');g.step(None,'Button4')
-  logs=list(g.ForeverVanguardCycleDB.log.values())
-  self.assertEqual(sum('No mouseover GUID.' in line for line in logs),1)
- def test_fv_and_report(self):
-  g=self.client();self.assertEqual(g.SLASH_FOREVERVANGUARD1,'/fv')
-  g.SlashCmdList.FOREVERVANGUARD('');self.assertEqual(g.M.openCategory,123)
-  g.SlashCmdList.FOREVERVANGUARD('report')
- def test_hold_sweep_release_and_no_single_press_dependency(self):
-  g=self.client();g.step('A',None);self.assertEqual(g.M.clicks,0)
-  g.step('A','Button4');g.step('A','Button4');g.step('B','Button4');g.step('C',None)
-  self.assertEqual(g.M.assignments.A,8);self.assertEqual(g.M.assignments.B,7)
-  self.assertIsNone(g.M.assignments.C);self.assertEqual(g.M.clicks,2)
- def test_combat_has_no_attribute_changes(self):
-  g=self.client();g.M.combat=True;g.step('A','Button4');g.step('B','Button4')
-  self.assertEqual(g.M.clicks,2);self.assertEqual(g.M.assignments.B,7)
- def test_existing_marks_and_unseen_owners_preserved(self):
-  g=self.client();g.M.assignments.unseen=8;g.M.assignments.A=5
-  g.step('A','Button4');g.step('B','Button4')
-  self.assertEqual(g.M.assignments.A,5);self.assertEqual(g.M.assignments.unseen,8)
-  self.assertEqual(g.M.assignments.B,7)
- def test_eight_marks_no_wrap(self):
-  g=self.client()
-  for n in range(10):g.step(str(n),'Button4')
-  self.assertEqual(g.M.clicks,8)
- def test_secret_queries_skip_even_in_combat(self):
-  for key in ['secretMarker','secretAvailability']:
-   g=self.client();g.M[key]=True;g.M.combat=True;g.step('A','Button4')
-   self.assertEqual(g.M.clicks,0)
- def test_native_rejection_stops_and_is_not_success(self):
-  g=self.client(False);g.step('A','Button4');g.step('A','Button4');g.step('B','Button4')
-  self.assertEqual(g.M.clicks,1);self.assertFalse(g.ForeverVanguardDB.enabled)
-  logs='\n'.join(g.ForeverVanguardCycleDB.log.values())
-  self.assertIn('BLOCKED',logs);self.assertNotIn('CONFIRMED',logs)
- def test_silent_failure_stops(self):
-  g=self.client();g.M.rejectMark=True;g.step('A','Button4');g.step('A','Button4');g.step('B','Button4')
-  self.assertEqual(g.M.clicks,1);self.assertFalse(g.ForeverVanguardDB.enabled)
- def test_new_batch_preserves_actual_marks(self):
-  g=self.client();g.step('A','Button4');self.assertFalse(g.ForeverVanguard.NewBatch())
-  g.step('A',None);self.assertTrue(g.ForeverVanguard.NewBatch());g.step('B','Button4')
-  self.assertEqual(g.M.assignments.A,8);self.assertEqual(g.M.assignments.B,7)
- def test_mouse5_and_modifiers(self):
+                   "function UnitGUID() return M.secret end"]:
+   g=self.client(setup=override);g.click('A');self.assertIsNone(g.M.markerCalls)
+  g=self.client();g.click(None);self.assertIsNone(g.M.markerCalls)
+ def test_modifiers_and_rebinding(self):
   g=self.client();self.assertTrue(g.ForeverVanguard.SetKey('SHIFT-BUTTON5'))
-  g.step('A','Button5');self.assertEqual(g.M.clicks,0)
-  g.M.modifier='shift';g.step('A','Button5');self.assertEqual(g.M.clicks,1)
- def test_icon_settings(self):
-  g=self.client();g.ForeverVanguard.SetIconEnabled(8,False)
-  g.ForeverVanguard.MoveIcon(3,-1);g.step('A','Button4')
-  self.assertEqual(g.M.assignments.A,6)
- def test_settings_capture_does_not_mark(self):
-  g=self.client();g.ForeverVanguard.capturing=True;g.step('A','Button4')
-  self.assertEqual(g.M.clicks,0)
-  g.ForeverVanguard.capturing=False;g.ForeverVanguard.panel.Show(g.ForeverVanguard.panel)
-  g.step('A','Button4');self.assertEqual(g.M.clicks,0)
- def test_closing_settings_parent_resumes_hold_detection(self):
-  g=self.client();self.l.execute("M.settingsWindow=CreateFrame('Frame',nil,UIParent); ForeverVanguard.panel.parent=M.settingsWindow")
-  g.SlashCmdList.FOREVERVANGUARD('')
-  g.step('A','Button4');self.assertEqual(g.M.clicks,0)
-  g.M.settingsWindow.Hide(g.M.settingsWindow)
-  self.assertTrue(g.ForeverVanguard.panel.IsShown(g.ForeverVanguard.panel))
-  self.assertFalse(g.ForeverVanguard.panel.IsVisible(g.ForeverVanguard.panel))
-  g.step('A',None);g.step('A','Button4')
-  self.assertEqual(g.M.clicks,1)
- def test_off_command_stops(self):
-  g=self.client();g.SlashCmdList.FOREVERVANGUARD('off');g.step('A','Button4')
-  self.assertEqual(g.M.clicks,0)
+  g.click('A');g.click('A','BUTTON5');self.assertIsNone(g.M.markerCalls)
+  g.click('A','SHIFT-BUTTON5');self.assertEqual(g.M.assignments.A,8)
+  self.assertIsNone(g.M.overrides['BUTTON4'])
+  g.ForeverVanguard.SetKey(False);g.click('B','SHIFT-BUTTON5');self.assertIsNone(g.M.assignments.B)
+ def test_binding_conflict_preserves_existing_binding(self):
+  g=self.client(setup="M.bindings.JUMP='BUTTON4'")
+  g.click('A');self.assertIsNone(g.M.markerCalls)
+  self.assertEqual(g.GetBindingAction('BUTTON4',True),'JUMP')
+ def test_settings_and_hidden_parent(self):
+  g=self.client();g.SlashCmdList.FOREVERVANGUARD('');self.assertEqual(g.M.openCategory,123)
+  g.click('A');self.assertIsNone(g.M.markerCalls)
+  self.l.execute("M.window=CreateFrame('Frame',nil,UIParent); ForeverVanguard.panel.parent=M.window; M.window:Hide()")
+  g.click('A');self.assertEqual(g.M.assignments.A,8)
+  g.SlashCmdList.FOREVERVANGUARD('report')
+ def test_capture_and_disabled_state(self):
+  g=self.client();g.ForeverVanguard.capturing=True;g.click('A');self.assertIsNone(g.M.markerCalls)
+  g.ForeverVanguard.capturing=False;g.SlashCmdList.FOREVERVANGUARD('off');g.click('A')
+  self.assertIsNone(g.M.markerCalls)
+ def test_icon_order_and_disable(self):
+  g=self.client();g.ForeverVanguard.SetIconEnabled(8,False);g.ForeverVanguard.MoveIcon(3,-1)
+  g.click('A');self.assertEqual(g.M.assignments.A,6)
+ def test_new_batch_still_preserves_live_marks(self):
+  g=self.client();g.click('A');self.assertTrue(g.ForeverVanguard.NewBatch())
+  g.click('B');self.assertEqual(g.M.assignments.A,8);self.assertEqual(g.M.assignments.B,7)
  def test_saved_reservations_and_disabled_state(self):
   g=self.client(setup='ForeverVanguardDB={enabled=false};ForeverVanguardCycleDB={reserved={[8]=true}}')
-  g.step('A','Button4');self.assertEqual(g.M.clicks,0)
-  g.ForeverVanguardDB.enabled=True;g.step('A','Button4');self.assertEqual(g.M.assignments.A,7)
- def test_no_direct_marking_macros_or_override_bindings(self):
-  g=self.client();g.step('A','Button4')
+  g.click('A');self.assertIsNone(g.M.markerCalls)
+  g.ForeverVanguardDB.enabled=True;g.click('A');self.assertEqual(g.M.assignments.A,7)
+ def test_native_rejection_disables(self):
+  g=self.client(setup="function SetRaidTarget() M.emit('ADDON_ACTION_FORBIDDEN','ForeverVanguard','SetRaidTarget') end")
+  g.click('A');self.assertFalse(g.ForeverVanguardDB.enabled)
+  self.assertIsNone(g.M.assignments.A)
+ def test_silent_failure_disables(self):
+  g=self.client();g.M.rejectMark=True;g.click('A');g.hover('A')
+  self.assertFalse(g.ForeverVanguardDB.enabled)
+ def test_no_synthetic_clicks_direct_marks_or_macros(self):
+  g=self.client();g.click('A')
   source=(ROOT/'ForeverVanguard/ForeverVanguard.lua').read_text()
-  self.assertNotIn('pcall(SetRaidTarget',source);self.assertNotIn('SetRaidTarget(',source)
-  self.assertEqual(len(list(g.M.overrides.items())),0);self.assertEqual(len(list(g.M.macros.items())),0)
+  self.assertNotIn('SetRaidTarget(',source);self.assertNotIn('IsMouseButtonDown',source)
+  self.assertNotIn('V.Poll',source);self.assertEqual(len(list(g.M.macros.items())),0)
  def legacy(self, extra=''):
   return self.client(setup="""
 M.macros[121]={name='VG Ability1',body='legacy body'}

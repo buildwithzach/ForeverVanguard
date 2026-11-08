@@ -1,6 +1,6 @@
--- Local secure-button hold/sweep implementation; native authorization is unverified.
+-- One physical hotkey click per mouseover mark. No synthetic clicks.
 local addonName = ...
-local V = { status = "Hold Mouse 4 and move across enemies.", controls = {} }
+local V = { status = "Hover an enemy and click Mouse 4.", controls = {} }
 ForeverVanguard = V
 local defaults = {8, 7, 6, 5, 4, 3, 2, 1}
 local names = {"Star", "Circle", "Diamond", "Triangle", "Moon", "Square", "Cross", "Skull"}
@@ -32,6 +32,7 @@ function V.ApplyBinding()
   if not V.button then return end
   if locked() then V.pendingBinding = true; return end
   V.pendingBinding = nil
+  ClearOverrideBindings(V.button)
   V.activeKey = nil
   local key = ForeverVanguardDB.key
   if key then
@@ -40,7 +41,8 @@ function V.ApplyBinding()
       message(keyLabel(key) .. " is already bound. Choose another key in Vanguard settings.")
     else
       V.activeKey = key
-      message("Hold " .. keyLabel(key) .. " and sweep. Secure marking needs live validation.")
+      SetOverrideBindingClick(V.button, true, key, "ForeverVanguardCycle", "LeftButton")
+      message("Hover an enemy and click " .. keyLabel(key) .. ". Safe cycling is out of combat only.")
     end
   else
     message("Choose a marking key.")
@@ -75,8 +77,7 @@ function V.SetIconEnabled(icon, enabled)
   V.RefreshSettings()
 end
 function V.NewBatch()
-  if locked() or V.held then return false end
-  V.seen = {}
+  if locked() then return false end
   ForeverVanguardCycleDB.reserved = {}
   message("New batch. Icons still in use will be skipped.")
   V.RefreshSettings()
@@ -128,7 +129,6 @@ function V.Log(value)
 end
 function V.StopBlocked(reason)
   ForeverVanguardDB.enabled = false
-  V.held = false
   V.Log("BLOCKED " .. reason)
   message("Forever blocked secure marking. Disabled; /fv report has details.", true)
   V.RefreshSettings()
@@ -150,53 +150,32 @@ local function completeAttempt()
     V.StopBlocked("secure request did not apply")
   end
 end
-function V.Poll()
-  if not V.button then return end
-  if V.pending and GetTime() - V.pending.at >= 0.2 then completeAttempt() end
-  local key = V.activeKey
-  local down = false
-  if ForeverVanguardDB.enabled and key and not V.capturing and not V.panel:IsVisible() then
-    local number = key:match("BUTTON(%d)$")
-    local known, pressed = public(IsMouseButtonDown, "Button" .. number)
-    down = known and pressed
-      and (not not IsAltKeyDown()) == (key:find("ALT-", 1, true) ~= nil)
-      and (not not IsControlKeyDown()) == (key:find("CTRL-", 1, true) ~= nil)
-      and (not not IsShiftKeyDown()) == (key:find("SHIFT-", 1, true) ~= nil)
-  end
-  if down ~= V.held then
-    V.held = down
-    if down then V.seen = {}; V.skipReasons = {}; V.lastHoverReason = nil; V.Log("HOLD start route=secure") else V.Log("HOLD end") end
-  end
-  if not down then return end
-  local known, guid = public(UnitGUID, "mouseover")
-  if not known or not guid then
-    local reason = known and "No mouseover GUID." or "Mouseover GUID is unreadable."
-    if V.lastHoverReason ~= reason then V.Log("SKIP " .. reason); V.lastHoverReason = reason end
-    message(reason)
+-- Only PreClick on a hardware-bound secure button prepares a mark. The
+-- inherited Blizzard handler performs it; addon Lua never invokes Click().
+function V.PreClick(self)
+  V.attempting = false
+  if locked() then
+    message("Safe icon cycling is unavailable in combat.", true)
+    V.Log("SKIP combat: safe cycling unavailable")
     return
   end
-  V.lastHoverReason = nil
-  if V.seen[guid] then return end
-  local icon, reason = V.Plan()
-  if not icon then
-    message(reason)
-    if V.skipReasons[guid] ~= reason then V.Log("SKIP " .. reason); V.skipReasons[guid] = reason end
-    return
-  end
+  self:SetAttribute("type", nil)
   completeAttempt()
-  if not ForeverVanguardDB.enabled then return end
-  -- Remember only dispatched units, so a transient eligibility failure can recover
-  -- while the same button and mouseover remain held.
-  V.seen[guid] = true
+  if V.capturing or V.panel:IsVisible() then return end
+  local icon, reason = V.Plan()
+  if not icon then message(reason); V.Log("SKIP " .. reason); return end
+  local known, guid = public(UnitGUID, "mouseover")
+  if not known or not guid then message("Mouseover GUID is unreadable."); return end
   ForeverVanguardCycleDB.reserved[icon] = true
   V.pending = {guid = guid, icon = icon, at = GetTime()}
-  V.Log("ATTEMPT route=secure icon=" .. icon)
-  -- No direct SetRaidTarget, macro or protected attribute writes here.
-  -- This remains a synthetic click: only the real client can establish permission.
+  self:SetAttribute("marker", icon)
+  self:SetAttribute("type", "raidtarget")
   V.attempting = true
-  local ok = pcall(V.buttons[icon].Click, V.buttons[icon], "LeftButton", false)
+  V.Log("ATTEMPT route=hardware-click icon=" .. icon)
+end
+function V.PostClick(self)
   V.attempting = false
-  if not ok then V.StopBlocked("secure button call raised an error") end
+  if not locked() then self:SetAttribute("type", nil) end
 end
 local function text(parent, value, x, y, width, font)
   local label = parent:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
@@ -242,10 +221,10 @@ end
 local function settings()
   local p = CreateFrame("Frame"); p.name = "Forever Vanguard"; p:Hide(); V.panel = p
   text(p, "Forever Vanguard", 16, -16, 500, "GameFontNormalLarge")
-  text(p, "Hold your mouse button and move across enemies. Release to stop.", 16, -48, 560)
-  text(p, "Secure hold-and-sweep: awaiting live validation.\nSkips occupied/hidden icons; stops if Forever rejects marking.", 16, -72, 570)
+  text(p, "Hover a living enemy, then click your mouse button once to mark it.", 16, -48, 560)
+  text(p, "One click per mob. Safe icon cycling is out of combat only.\nSkips occupied/hidden icons; stops if Forever rejects marking.", 16, -72, 570)
   V.enabledButton = control(p, "Enabled", 16, -116, 100, function()
-    ForeverVanguardDB.enabled = not ForeverVanguardDB.enabled; V.held = false; V.RefreshSettings()
+    ForeverVanguardDB.enabled = not ForeverVanguardDB.enabled; V.RefreshSettings()
   end)
   text(p, "Marking key", 16, -156, 100)
   V.keyButton = control(p, "", 130, -150, 250, function()
@@ -309,20 +288,22 @@ local function build()
   end
   ForeverVanguardCycleDB.reserved = reserved
   ForeverVanguardCycleDB.log = type(ForeverVanguardCycleDB.log) == "table" and ForeverVanguardCycleDB.log or {}
-  V.seen = {}
-  V.buttons = {}
-  for icon = 1, 8 do
-    local b = CreateFrame("Button", "ForeverVanguardSecure" .. icon, UIParent, "SecureActionButtonTemplate")
-    b:SetSize(1, 1); b:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 10000)
-    b:SetAlpha(0); b:EnableMouse(false); b:RegisterForClicks("AnyUp")
-    b:SetAttribute("useOnKeyDown", false)
-    b:SetAttribute("type", "raidtarget"); b:SetAttribute("action", "set-unmarked")
-    b:SetAttribute("unit", "mouseover"); b:SetAttribute("marker", icon)
-    V.buttons[icon] = b
-  end
-  V.button = V.buttons[1]
+  local b = CreateFrame("Button", "ForeverVanguardCycle", UIParent, "SecureActionButtonTemplate")
+  b:SetSize(1, 1); b:SetPoint("TOPLEFT", UIParent, "TOPLEFT", -10000, 10000)
+  b:SetAlpha(0); b:EnableMouse(false); b:RegisterForClicks("AnyUp")
+  b:SetAttribute("useOnKeyDown", false)
+  b:SetAttribute("action", "set-unmarked")
+  b:SetAttribute("unit", "mouseover")
+  b:SetScript("PreClick", V.PreClick)
+  b:SetScript("PostClick", V.PostClick)
+  -- Also guard the secure handler itself: combat can start after preparation.
+  -- No combat click may execute a stale marker prepared outside combat.
+  SecureHandlerWrapScript(b, "OnClick", b, [[
+    if SecureCmdOptionParse("[combat] stop; go") == "stop" then return false end
+  ]])
+  V.button = b
   local _, clientBuild = GetBuildInfo()
-  V.Log("SESSION 0.2.5 build=" .. clientBuild .. " route=secure")
+  V.Log("SESSION 0.2.6 build=" .. clientBuild .. " route=hardware-click")
   settings(); V.ApplyBinding()
 end
 local version, _, _, interface = GetBuildInfo()
@@ -332,7 +313,7 @@ SLASH_FOREVERVANGUARD1 = "/fv"
 SLASH_FOREVERVANGUARD2 = "/vanguard"
 SlashCmdList.FOREVERVANGUARD = function(commandText)
   if commandText == "off" then
-    if ForeverVanguardDB then ForeverVanguardDB.enabled = false; V.held = false; V.RefreshSettings() end
+    if ForeverVanguardDB then ForeverVanguardDB.enabled = false; V.RefreshSettings() end
     return
   elseif commandText == "report" and ForeverVanguardCycleDB then
     local f = CreateFrame("Frame", nil, UIParent, "BasicFrameTemplateWithInset")
@@ -350,20 +331,18 @@ SlashCmdList.FOREVERVANGUARD = function(commandText)
   if V.category then Settings.OpenToCategory(V.category:GetID()) end
 end
 local events = CreateFrame("Frame")
-for _, event in ipairs({"ADDON_LOADED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "UPDATE_BINDINGS", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "UPDATE_MOUSEOVER_UNIT"}) do events:RegisterEvent(event) end
+for _, event in ipairs({"ADDON_LOADED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "UPDATE_BINDINGS", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN"}) do events:RegisterEvent(event) end
 events:SetScript("OnEvent", function(_, event, name, action)
   if event == "ADDON_LOADED" then
     if name ~= addonName or V.button then return end
     if locked() then V.waiting = true else build() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     if V.waiting then V.waiting = nil; build()
-    elseif V.button then V.ApplyBinding() end
+    elseif V.button then V.button:SetAttribute("type", nil); V.ApplyBinding() end
   elseif event == "PLAYER_REGEN_DISABLED" then
     V.StopCapture(); V.RefreshSettings()
   elseif event == "UPDATE_BINDINGS" then
     V.ApplyBinding()
-  elseif event == "UPDATE_MOUSEOVER_UNIT" then
-    V.Poll()
   elseif V.button and (name == addonName or V.attempting) then
     local detail = (issecretvalue and issecretvalue(action)) and "hidden action" or tostring(action)
     V.StopBlocked(event .. " " .. detail)
@@ -373,5 +352,8 @@ end)
 local elapsed = 0
 events:SetScript("OnUpdate", function(_, dt)
   elapsed = elapsed + dt
-  if elapsed >= 0.03 then elapsed = 0; V.Poll() end
+  if elapsed >= 0.1 then
+    elapsed = 0
+    if V.pending and GetTime() - V.pending.at >= 0.2 then completeAttempt() end
+  end
 end)

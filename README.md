@@ -1,33 +1,29 @@
 # Forever Vanguard
 
-Local development version 0.2.5 for WoW Forever 1.60.1. This is the actual `ForeverVanguard` addon, with its normal `/fv` settings. It has not been uploaded.
-
-## 0.2.5 correction
-
-Closing the parent Settings window can leave the addon canvas flagged as shown while it is no longer visible. The hold-input gate now uses actual visibility, so closing settings no longer silently prevents hold detection in that state. A regression test reproduces the failure on 0.2.4 and passes after this change. This is a local reproduction, not confirmation of in-game marking permission.
-
-## 0.2.4 correction
-
-The supplied 0.2.3 log detected held input but showed eligibility skips and no secure attempts. This version replaces the macro-condition eligibility parser with explicit existence, attackability and life-state checks. It retries a temporarily ineligible mob during the same hold instead of prematurely marking it seen. Missing or secret mouseover GUIDs now produce a distinct diagnostic reason. This does not establish why the original condition failed in the client or prove native secure-action permission.
+Local development version 0.2.6 for WoW Forever 1.60.1. Not uploaded or verified in the live client.
 
 ## Controls
 
-Hold Mouse 4 and move across living hostile mobs. Release to stop. `/fv` opens Options > AddOns > Forever Vanguard. Configure Mouse 3/4/5 with optional Alt/Ctrl/Shift, change icon order, disable individual icons, or disable marking. Other game bindings are preserved; choose an unused button. Close settings before sweeping.
+Hover a living hostile mob and click Mouse 4 once. The mark is requested on button release. Move to the next mob and click again. Holding the button and sweeping does nothing automatically.
 
-The addon preconfigures eight secure raid-target buttons outside combat. Mouseover changes while the chosen button is held request a synthetic click on the selected button. There are no direct SetRaidTarget calls, user macros, or click-per-mob fallback.
+`/fv` opens the normal addon settings: enabled state, Mouse 3/4/5 with optional Alt/Ctrl/Shift, icon order, disabled icons, and Start new batch. Close settings before marking. Existing key conflicts are preserved. No macros or action-bar changes are needed.
 
-**The real client may reject synthetic secure-button clicks. Merely using a secure button does not grant hardware-input permission. This route has not been validated in Forever.** Version 0.2.1's direct route was forbidden on build 70862; that route is removed from this addon. Local tests are not evidence that the native client accepts the new route.
+The hotkey is bound to one secure raid-target button. Outside combat, PreClick checks the current mouseover and available icons, prepares the chosen marker, and lets Blizzard's inherited handler perform the actual hardware click. PostClick disarms it. There are no synthetic clicks, mouse-button polling, or mouseover-triggered marking.
+
+## Combat limitation
+
+**Safe automatic icon selection is out of combat only.** Combat clicks deliberately do nothing. A secure combat guard also prevents execution if combat begins after the marker was prepared. This build does not promise combat cycling or substitute a fixed icon that could steal another mob's mark.
 
 ## Icon protection
 
-Already-marked mobs are skipped. Each candidate icon must be reported free by the client, including icons on mobs outside your current mouseover. Attempts are reserved across reloads, and the cycle never wraps to a used icon. If marker information is secret or unavailable, marking pauses rather than guessing. Group members assigning icons concurrently remain a server-side race; use one marker during validation.
+Already-marked mobs are skipped. The selected icon must be reported free by the client, including icons on unseen mobs. Attempts are reserved across reloads; the order never wraps to a reserved icon. Hidden or unavailable information stops selection. Start new batch releases reservations outside combat; it never clears live marks and selection still checks occupancy.
 
-Start new batch releases reservations outside combat after releasing the button; it does not clear live marks. Any blocked action during the request disables marking. A readable failed confirmation also disables it, avoiding repeated blocked calls. Enable again in `/fv` only when ready to retry.
+There is no atomic claim-unused-icon API in this route. Another player assigning the same icon between the check and the action remains a race; use one designated marker. A blocked request or readable failed confirmation disables marking rather than repeatedly trying.
 
 ## Installation and validation
 
-Replace the old `ForeverVanguard` folder with the folder from the local ZIP. Disable/remove the earlier separate `ForeverVanguardSweepTest` addon. Restart or reload after installation. Old normal settings are preserved; a previously disabled normal addon stays disabled.
+Replace the existing ForeverVanguard folder with the one in the local archive. Disable the historical ForeverVanguardSweepTest addon. Reload after installation. Existing settings, including a previously disabled state, are retained.
 
-`/fv report` opens a copyable diagnostic report. `/fv off` stops marking, including in combat. Reports record secure attempts and distinguish confirmed markers, rejected requests, and unreadable or changed mouseover results. They are saved per character after reload/logout.
+`/fv report` displays diagnostic results. `/fv off` disables marking. Native permission, rendered settings and actual visible marks still require live Forever validation; passing mocked tests does not establish these outcomes. See TESTING.md.
 
-Run `python build.py` using Python with `lupa` installed. The build tests source and extracted ZIP, and writes only to `dist/local-only`. The isolated historical probe cannot be packaged as the normal addon by its builder.
+Run `python build.py` with lupa installed to test source and extracted archive. Packages are written only to dist/local-only. Do not publish before the requested behavior is validated.

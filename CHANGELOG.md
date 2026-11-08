@@ -1,3 +1,10 @@
+# 0.2.6 — local development
+
+- Replace hold-and-sweep polling and synthetic clicks with one physical mouse-button binding click per mob, on release.
+- Retain `/fv`, configurable key/modifiers and icon order, existing-mark checks, no-wrap reservations and old-action recovery.
+- Restrict safe icon cycling to outside combat; secure guard prevents stale prepared actions in combat. No claim of combat cycling.
+- Local tests cover the hardware binding path; native Forever validation is pending. Not uploaded.
+
 ## 0.2.5 — local only
 
 - Fix hold detection staying paused after the parent settings window closes: check actual canvas visibility rather than its independent shown flag.
