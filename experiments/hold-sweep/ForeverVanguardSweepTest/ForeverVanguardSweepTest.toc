@@ -1,0 +1,7 @@
+## Interface: 16001
+## Title: Forever Vanguard - Hold Sweep TEST
+## Notes: Experimental Mouse4 sweep diagnostics. Disable normal Forever Vanguard while testing.
+## Version: 0.2.0-sweep-test.1
+## SavedVariablesPerCharacter: ForeverVanguardSweepTestDB
+
+SweepTest.lua

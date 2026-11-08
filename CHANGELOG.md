@@ -1,3 +1,10 @@
+## 0.2.1
+
+- Package the experimental hold-Mouse-4 sweep probe under the normal Forever Vanguard name.
+- Add direct-call and synthetic secure-click routes, blocked-action diagnostics, and copyable reports.
+- Preserve readable existing marks, reserve attempted icons, and skip secret/unavailable allocation data.
+- Six mocked tests pass against source and extracted package; live Forever behavior remains unverified.
+
 # 0.2.0-alpha.1
 
 - Replace attack attachment, macro setup, modifier shortcuts and toolbar with one Mouse 4 mouseover action.
