@@ -1,67 +1,87 @@
 # Forever Vanguard
 
-Alpha build **0.1.0-alpha.4** for **WoW Forever 1.60.1 / Interface 16001**.
+**0.2.0-alpha.1 — WoW Forever 1.60.1 / Interface 16001**
 
-## Attach to your existing attack
+Hover an enemy and press **Mouse 4**. Move to another enemy and press it again.
+Vanguard requests the next unused raid icon without changing your target or creating macros.
 
-1. Install the `ForeverVanguard` folder under `Interface/AddOns`, then restart/reload WoW.
-2. Out of combat, type **/fv**. Vanguard lists eligible offensive spells already on your action bars.
-3. Click **Attach** beside the targeted attack you want to mark with.
-4. Use that ability's existing button or key. It requests Skull on your selected living enemy and casts that attack on the same target.
+**Out of combat only.** Cycling pauses in areas where Forever hides available icons.
+This is an installable test build: actual Forever input, secure execution and appearance
+are not yet verified. Offline tests cannot establish in-game compatibility.
 
-Discovery is class-independent: it reads the offensive spells actually present on this character’s bars, without a fixed class or opener list. Multiple eligible attacks can be attached independently. This does not certify every class-specific spell in-game.
+## Setup
 
-You do not type a spell name, write a macro, drag a replacement button, or configure a new key. Vanguard creates a character macro internally and puts it in the same action slot, preserving the slot's bindings. It preserves the spell name and available rank text. **This changes that selected slot to a macro**; nothing changes until you click Attach.
+1. Extract the ZIP into your Forever client's `Interface/AddOns` folder. The manifest
+   should be `Interface/AddOns/ForeverVanguard/ForeverVanguard.toc`.
+2. Restart/reload WoW. **Mouse 4** is selected automatically if it is unbound. Existing
+   bindings are never replaced. If it is occupied, choose another key in settings.
+3. Open **Options → AddOns → Forever Vanguard**, or type **/fv**.
 
-Choose a normal, targeted enemy attack. Ground-targeted attacks, toggles, forms, helpful spells and existing custom macros are not supported by this conversion. The scan filters helpful/passive spells, macros and items; the player must choose an appropriate targeted attack from remaining offensive spells. Explicit target routing means this attached action uses your selected enemy, not native mouseover-casting preferences.
+There is no toolbar, floating panel, attack attachment, macro setup or modifier-specific
+icon mapping. `/fv` opens the native settings category.
 
-**Restore** puts the saved original spell back into that slot. If you edited the slot or generated macro since attachment, Vanguard refuses to overwrite your newer changes. Recovery records are character-specific. Generated macros are retained rather than deleted during restoration. Action slots managed outside WoW's standard slot APIs are not covered.
+## Marking
 
-Attachment/restoration require being out of combat with an empty cursor; creating an action needs a free character macro slot. Existing destination marks are preserved. Marking happens before casting, so a mark can appear even if the spell fails, is out of range, or is on cooldown. A Skull assignment can move Skull from another mob. Normal group marking permissions still apply.
+The default order is **Skull → Cross → Square → Moon → Triangle → Diamond → Circle → Star**.
+Each press/release handles the living hostile mob under your cursor, with no target fallback.
+The button acts on release, so keep your mouse on the mob until you release it.
 
-## Optional manual macro builder
+- Already-marked mobs are left unchanged. Repeated presses on a marked mob do not advance.
+- Icons reported in use anywhere are skipped, including other players' marks.
+- After every enabled icon has been used or reserved, marking stops. It never wraps and
+  deliberately moves a previous icon to another mob.
+- Your settings page lets you change the hotkey, reorder the icons and turn individual
+  icons on/off. Changes are available out of combat.
+- **Start new batch** releases the addon's reservations. It does not clear real marks;
+  icons the client still reports in use remain unavailable. No automatic combat/zone reset.
+- A request reserves its icon even if the server rejects it. This conservative behavior
+  avoids reusing it while a previous request is pending. Start a new batch to retry after
+  checking your marks and permissions. “Requested” does not mean success was confirmed.
 
-`/fv pull [ability]` still provides a manual macro builder for users who want it. Those macros use living hostile mouseover first, then target fallback. The automatic **Attach** workflow above uses only the selected target to match the chosen targeted attack.
+Marking requires the normal group permissions; raid leaders and assistants can mark.
+A custom unit-frame addon may consume Mouse 4 before a global binding receives it. Test
+world models and enemy nameplates on the actual client; changing to a keyboard key can
+help diagnose input interception.
 
-## Optional marking controls
+## Forever limits
 
-The small WoW-styled toolbar is hidden on fresh installs; `/fv bar` toggles it. X closes it, including through a secure hardware click during combat. `/fv bar` visibility changes requested during combat are deferred. Drag its title out of combat to move it.
+The marker itself is placed by Blizzard's secure `raidtarget` action with `set-unmarked`.
+Vanguard never calls `SetRaidTarget` directly. Before arming it, the addon checks
+`GetRaidTargetIndex` and `GetNextAvailableRaidTargetMarkerIndex` for public results.
+If these values are secret, unavailable or invalid, the action stays inert.
 
-Separate marking keys are optional and are not assigned on fresh installs. `/fv bind F6` opts into a temporary shortcut and its Shift/Ctrl/Alt combinations when all are available. Existing bindings are preserved; conflicts are reported. `/fv bind off` removes these temporary shortcuts. These do not modify your saved WoW binding profile.
+Selecting the next unused icon cannot be done with the verified restricted snippet API
+in combat, so this build does not offer combat cycling. It never falls back to a blind
+counter or substitutes a fixed icon. A secure combat guard also prevents an already
+prepared request from firing after combat begins.
 
-The optional shortcut marks only living hostile mouseover units, with no target fallback:
+The availability check and server assignment are separate operations. Another player's
+simultaneous marking can race that check; this build cannot provide an atomic server-side
+reservation across players. The persisted per-character reservation list prevents reuse
+of this addon's own attempted icons across reloads.
 
-- Key alone: Skull.
-- Shift + key: X.
-- Ctrl + key: Moon.
-- Alt + key: Square.
+## Upgrading from 0.1.x
 
-Quick Mark preserves an existing mark, including when modifiers are held. Individual icon bindings can be configured in WoW's Key Bindings; Shift with those individual actions explicitly replaces a mark. Moving the cursor onto the toolbar removes mouseover from the enemy, so use keys while hovering the enemy.
+Old macro creation and attack attachment have been removed. Existing macros and attack
+slots are not automatically modified. If an older build attached marking to an attack,
+settings shows **Restore old attack buttons**. It restores saved spell IDs/ranks only
+where the original generated macro and slot still match; newer edits are preserved.
+Generated macros are retained, but no longer created or used by the new marking flow.
 
-## Commands
-
-- `/fv pull [ability]`: configure the combined mark-and-cast action.
-- `/fv` or `/fv attach` or `/fv setup`: attach/restore marking on existing action slots.
-- `/fv bar`: show/hide the optional toolbar.
-- `/fv bind F6`: enable an optional marking shortcut (F1–F12).
-- `/fv bind off`: disable addon shortcut overrides.
-- `/fv reset`: show and recenter the toolbar.
-- `/fv status`: version and marking shortcut on demand.
-- `/fv report`: copyable client/input/blocked-action report.
+The old toolbar and modifier bindings are retired. The new default is Mouse 4, not the
+old optional F-key shortcut. Your unrelated WoW binding profile is unchanged.
 
 ## Validation
 
-46 code tests cover routing, macro creation/reuse and failures, modifier dispatch, binding conflicts, close behavior, both click phases and existing-mark preservation. Tests execute pinned Blizzard Forever Lua action-dispatch and target-marker handlers. Native C APIs, secure trust, hardware input, spell casting and rendering remain modeled.
+Run `python tests/test_vanguard.py` with Python 3 and `lupa`, then `python build.py`.
+The builder checks the source and the extracted ZIP and writes a SHA-256 sidecar.
+Tests run the actual pinned Blizzard Lua dispatcher with modeled native APIs. They cover
+allocation, exhaustion, repeated mobs, occupied icons, secrets, combat guards, key conflicts,
+settings, persisted reservations and recovery of older attack slots.
 
-**Actual PC-client marking, casting, appearance and combat closing remain unverified. This Alpha is for testing and must pass TESTING.md before promotion to stable.** Event counts in `/fv report` do not prove a particular mob was marked.
-
-## Development
-
-Python 3 with `lupa`: `python tests/test_vanguard.py`, then `python build.py`. The builder tests source and extracted ZIP, validates one root addon folder and generates a deterministic archive. Upstream test fixtures are not shipped.
+See **TESTING.md** for required real-client acceptance. Remains Alpha until it passes.
 
 Source evidence:
-- Blizzard Forever UI mirror: https://github.com/Ketho/wow-ui-source-forever/tree/forever
-- Tanksign secure marking reference: https://github.com/TankerALane/tanksign
-- AutoMarkAssist Forever behavior: https://www.curseforge.com/wow/addons/automarkassist/files/9045743/additional-files
-
-Project: https://www.curseforge.com/wow/addons/forever-vanguard
+- Forever secure dispatcher: https://github.com/Gethe/wow-ui-source/blob/9dc84f0d3bbae1768ac3405b3716000bd93eda06/Interface/AddOns/Blizzard_FrameXML/SecureTemplates.lua
+- Forever restricted API: https://github.com/Gethe/wow-ui-source/blob/9dc84f0d3bbae1768ac3405b3716000bd93eda06/Interface/AddOns/Blizzard_RestrictedAddOnEnvironment/RestrictedEnvironment.lua
+- Forever marker API: https://github.com/Gethe/wow-ui-source/blob/9dc84f0d3bbae1768ac3405b3716000bd93eda06/Interface/AddOns/Blizzard_APIDocumentationGenerated/RaidMarkersDocumentation.lua

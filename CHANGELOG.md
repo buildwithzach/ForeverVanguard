@@ -1,3 +1,12 @@
+# 0.2.0-alpha.1
+
+- Replace attack attachment, macro setup, modifier shortcuts and toolbar with one Mouse 4 mouseover action.
+- Add a native settings category for hotkey capture, icon order, enabled icons and new batches.
+- Preserve existing marks, skip globally occupied icons, reserve attempted icons per character and stop at exhaustion.
+- Fail closed in combat and when Forever hides marker availability. Combat cycling is not implemented.
+- Keep recovery-only support for old attached attack slots; never overwrite newer slot/macro edits.
+- Actual PC-client behavior remains unverified; see TESTING.md. No publishing performed.
+
 ## 0.1.0-alpha.4 — 2026-11-08
 
 - `/fv` lists existing offensive spell slots with explicit Attach/Restore controls.

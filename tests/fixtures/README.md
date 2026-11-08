@@ -10,4 +10,4 @@ native_dispatch.lua executes the original functions; native GetAttribute resolut
 
 Before changing type1 to *type1, three existing tests fail with this dispatcher: Shift overwrite, Quick Mark modifiers, and Shift marking a new mouseover. All passed under the old handmade simulation. Real keydown/keyup dispatch is also covered.
 
-BlizzardTargetMarker.lua is the unmodified TARGET_MARKER registration excerpt from the same Forever source tree, Blizzard_ChatFrameBase/Shared/SlashCommands.lua, retrieved 2026-11-07. The native handler is executed in combined-action tests; macro conditional parsing and spell outcomes are modeled.
+BlizzardTargetMarker.lua is the unmodified TARGET_MARKER registration excerpt from the same Forever source tree, Blizzard_ChatFrameBase/Shared/SlashCommands.lua, retrieved 2026-11-07. Retained as historical source evidence for 0.1.x. The 0.2.x tests do not execute macro actions.

@@ -18,6 +18,10 @@ function methods:RegisterEvent(e) self.events[e]=true end
 function methods:SetPoint(...) self.point={...} end
 function methods:ClearAllPoints() self.point=nil end
 function methods:SetSize(w,h) self.width,self.height=w,h end
+function methods:EnableMouse(v) self.mouseEnabled=v end
+function methods:SetAlpha(a) self.alpha=a end
+function methods:EnableKeyboard(v) self.keyboard=v end
+function methods:SetPropagateKeyboardInput(v) self.propagate=v end
 function methods:SetWidth(w) self.width=w end
 function methods:SetHeight(h) self.height=h end
 function methods:GetCenter() return 500,400 end
@@ -39,7 +43,7 @@ function methods:UnlockHighlight() self.highlight=false end
 function methods:RegisterForClicks(...) self.clicks={...} end
 function methods:CreateTexture() return CreateFrame('Texture',nil,self) end
 function methods:CreateFontString() return CreateFrame('FontString',nil,self) end
-for _,k in ipairs({'SetNormalTexture','SetPushedTexture','SetMaxLines','SetFontObject','SetMultiLine','SetAutoFocus','SetMaxLetters','ClearFocus','SetFocus','HighlightText','SetJustifyH','SetFrameStrata','SetClampedToScreen','SetMovable','EnableMouse','SetBackdrop','SetBackdropColor','SetBackdropBorderColor','SetColorTexture','SetTextColor','RegisterForDrag','StartMoving','StopMovingOrSizing','SetAllPoints','SetTexture','SetHighlightTexture','SetOwner','AddLine'}) do methods[k]=function() end end
+for _,k in ipairs({'SetNormalTexture','SetPushedTexture','SetMaxLines','SetFontObject','SetMultiLine','SetAutoFocus','SetMaxLetters','ClearFocus','SetFocus','HighlightText','SetJustifyH','SetFrameStrata','SetClampedToScreen','SetMovable','SetBackdrop','SetBackdropColor','SetBackdropBorderColor','SetColorTexture','SetTextColor','RegisterForDrag','StartMoving','StopMovingOrSizing','SetAllPoints','SetTexture','SetHighlightTexture','SetOwner','AddLine'}) do methods[k]=function() end end
 function CreateFrame(kind,name,parent,template)
  local f=setmetatable({name=name,parent=parent,template=template,shown=true,attributes={},scripts={},events={},secure=template and template:find('Secure')}, {__index=methods})
  if f.secure then local p=parent;while p do p.secure=true;p=p.parent end end
@@ -122,3 +126,11 @@ function PlaceAction(slot)
  M.actionSlots[slot]={kind=M.cursor,id=M.cursorID}
  M.cursor=previous and previous.kind;M.cursorID=previous and previous.id
 end
+
+function GetTime() return M.time or 0 end
+UIErrorsFrame={AddMessage=function(_, text) M.errorMessage=text end}
+Settings={
+ RegisterCanvasLayoutCategory=function(panel,name) M.settingsPanel=panel;return {GetID=function() return 123 end} end,
+ RegisterAddOnCategory=function(category) M.category=category end,
+ OpenToCategory=function(id) M.openCategory=id;M.settingsPanel:Show() end,
+}
