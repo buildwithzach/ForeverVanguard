@@ -1,52 +1,33 @@
-## Mark the pull. Lead the pack.
+## Forever Vanguard — Alpha testing release
 
-**Forever Vanguard** gives tanks a compact target and mouseover marking bar, configurable keybinds, and a mark-and-pull macro builder for **WoW Forever 1.60.1**.
+Mark with an existing tank attack in **WoW Forever 1.60.1**. In version **0.1.0-alpha.4**, open `/fv` and click **Attach** beside an eligible offensive spell already on your action bar. Vanguard creates the combined mark-and-cast macro internally and puts it in the same slot, retaining that slot's usual key. **Restore** returns the saved original spell.
 
-**Initial alpha:** live-client combat behavior and appearance still need validation. This build is for testing and feedback, not a stable release. It uses player-triggered clicks, keybinds, and macros; it does not automatically detect hits or mark enemies on its own.
-
-### Fast marking, fewer keys
-
-- **Quick Mark:** Skull normally, X with Shift, Moon with Ctrl, and Square with Alt.
-- **Individual icons:** all eight raid target icons plus Clear, with assignable keybinds.
-- **Mouseover first:** mark a living enemy under your cursor, falling back to your current hostile target. Target-only and mouseover-only modes are also available.
-- **Keep existing marks:** normal marking preserves a mark already on that mob. Shift with an individual icon replaces it; Quick Mark preserves it with every modifier.
-- **Readable controls:** keybind labels, a target/mouseover preview when readable, and a movable bar with saved settings.
-- **Quiet by default:** no automatic party announcements or chat spam.
-
-### Mark and use your opener on one press
-
-Type **/fv pull** followed by your opening ability's exact name. Vanguard generates a macro you can copy into WoW's macro window. The macro requests Skull and casts your chosen ability with the same target/mouseover conditions.
-
-Existing marks on that mob are preserved. Marking is attempted before casting, so a mark does not mean the ability landed. The addon does not choose an ability, change your action bars, or execute the macro automatically. Regenerate the macro if you change targeting modes.
+**Alpha status:** actual PC-client gameplay, appearance and class-specific compatibility remain unverified. 46 code tests pass using Blizzard Lua dispatch code with modeled native APIs. This is a testing release, not a stable or fully automatic marking addon.
 
 ### Get started
 
-1. Install the latest Forever Vanguard alpha and restart the client.
-2. Type **/fv setup** for the in-game guide.
-3. Open **Options > Key Bindings > Forever Vanguard** and assign Quick Mark or individual icons.
-4. Hover a living enemy's model or nameplate and press the key. With no valid mouseover, the default mode uses your target.
+1. Install version 0.1.0-alpha.4 and reload the game.
+2. Out of combat, with an empty cursor, type `/fv`.
+3. Choose a normal targeted enemy attack and click **Attach**.
+4. Use that ability's normal button/key. The action requests Skull and casts on your selected living hostile target.
 
-**Use keybinds for mouseover marking.** Clicking the bar moves the cursor away from the enemy and normally marks your target. Modifier combinations must invoke Quick Mark rather than another game binding; Vanguard never overwrites your keybindings.
+Attachment is explicit and uses a character macro slot. No actions change merely by opening the window. Discovery is class-independent; multiple eligible attacks can be attached separately. Existing macros, helpful/passive spells and items are skipped. Ground-targeted attacks, forms, toggles and custom action bars are not certified. Restore refuses to overwrite newer manual edits to a slot or generated macro.
 
-### Commands
+### Marking behavior
 
-- **/fv** — show or hide the bar outside combat.
-- **/fv auto** — mouseover first, target fallback.
-- **/fv target** — target only.
-- **/fv mouseover** — mouseover only, no fallback.
-- **/fv pull <ability>** — preview a mark-and-cast macro.
-- **/fv setup** — open the setup guide.
-- **/fv reset** — restore bar position and show it.
-- **/fv status** — show addon version and targeting mode.
+Existing marks on the chosen enemy are preserved. A Skull assignment may move Skull from another mob. Marking happens before casting, so a mark does not prove that the spell succeeded. Normal group marking permissions apply.
 
-### Compatibility and installation
+Attached attacks use your selected target. Optional separate marking keys use living hostile mouseover only. Passive hover-only marking and automatic first-hit detection are not implemented.
 
-**WoW Forever 1.60.1 / Interface 16001 only.** Retail and Classic are not supported. This addon is independent of RP Journal and has no required addon dependencies.
+### Optional tools
 
-For manual installation, extract the ZIP so the final path is **Interface/AddOns/ForeverVanguard/ForeverVanguard.toc**. Enable **Forever Vanguard** in your AddOns list.
+- `/fv bar`: compact WoW-styled marker toolbar, hidden on fresh installs, with an X close button.
+- `/fv bind F6`: opt into an available marker shortcut; existing bindings are preserved. Shift selects X, Ctrl Moon, Alt Square. `/fv bind off` disables addon shortcut overrides.
+- `/fv pull [ability]`: optional manual macro builder using mouseover first, then target fallback.
+- `/fv report`: copyable client and blocked-action diagnostics.
 
-The game's normal marking permissions apply. Each icon can belong to only one unit; assigning an icon may move it off another mob. Bar configuration and movement are restricted to out of combat. Marking uses Blizzard's secure player-input actions.
+### Install and feedback
 
-### Help improve the alpha
+Forever 1.60.1 / Interface 16001 only; no addon dependencies. Extract the ZIP so the manifest is at `Interface/AddOns/ForeverVanguard/ForeverVanguard.toc`.
 
-Report issues in this project's comments. Include your addon version, client build, targeting mode, steps to reproduce, and any Lua error. Particularly useful reports cover in-combat keybinds, modifier conflicts, raid permissions, and UI scaling. The package includes a testing checklist.
+Report issues in project comments with addon/client versions, steps and Lua errors. The ZIP includes an in-game acceptance checklist. Alpha files may require direct website download rather than appearing in normal CurseForge client listings.
