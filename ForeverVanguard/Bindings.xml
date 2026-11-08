@@ -1,0 +1,12 @@
+<Bindings>
+  <Binding name="CLICK ForeverVanguardQuick:LeftButton" header="FOREVERVANGUARD" />
+  <Binding name="CLICK ForeverVanguardMark8:LeftButton" header="FOREVERVANGUARD" />
+  <Binding name="CLICK ForeverVanguardMark7:LeftButton" header="FOREVERVANGUARD" />
+  <Binding name="CLICK ForeverVanguardMark6:LeftButton" header="FOREVERVANGUARD" />
+  <Binding name="CLICK ForeverVanguardMark4:LeftButton" header="FOREVERVANGUARD" />
+  <Binding name="CLICK ForeverVanguardMark3:LeftButton" header="FOREVERVANGUARD" />
+  <Binding name="CLICK ForeverVanguardMark2:LeftButton" header="FOREVERVANGUARD" />
+  <Binding name="CLICK ForeverVanguardMark1:LeftButton" header="FOREVERVANGUARD" />
+  <Binding name="CLICK ForeverVanguardMark5:LeftButton" header="FOREVERVANGUARD" />
+  <Binding name="CLICK ForeverVanguardMark0:LeftButton" header="FOREVERVANGUARD" />
+</Bindings>

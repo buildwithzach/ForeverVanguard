@@ -1,0 +1,14 @@
+## Interface: 16001
+## Title: Forever Vanguard
+## Notes: Target and mouseover marking tools for WoW Forever tanks.
+## Author: buildwithzach
+## Version: 0.1.0-alpha.4
+## X-Curse-Project-ID: 1790107
+## X-Website: https://www.curseforge.com/wow/addons/forever-vanguard
+## SavedVariables: ForeverVanguardDB
+## SavedVariablesPerCharacter: ForeverVanguardActionsDB
+## IconTexture: Interface\TargetingFrame\UI-RaidTargetingIcon_8
+
+ForeverVanguard.lua
+
+AbilityActions.lua
