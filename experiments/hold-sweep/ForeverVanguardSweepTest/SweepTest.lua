@@ -46,7 +46,8 @@ local function attempt()
     if not readable then log("SKIP: current mark secret/unreadable"); say("Skipped: current mark unreadable."); return end
     if mark then log("SKIP: already marked"); return end
     local icon
-    for n = 8, 1, -1 do
+    for index = 1, 8 do
+        local n = db.reverse and index or (9 - index)
         if not db.reserved[n] then
             local known, available = public(GetNextAvailableRaidTargetMarkerIndex, n, false, false, false)
             if not known then log("SKIP: free-icon query secret/unavailable"); say("Skipped: free icons unreadable."); return end
@@ -71,7 +72,7 @@ local function attempt()
 end
 local function poll()
     if not db then return end
-    local known, down = public(IsMouseButtonDown, "Button4")
+    local known, down = public(IsMouseButtonDown, db.mouseButton or "Button4")
     down = known and down and db.enabled or false
     if down ~= held then
         held = down
@@ -90,16 +91,26 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
         ForeverVanguardSweepTestDB = ForeverVanguardSweepTestDB or {}
         db = ForeverVanguardSweepTestDB
         db.log, db.reserved = db.log or {}, db.reserved or {}
-        db.route, db.enabled = "direct", true
+        db.route = db.route == "click" and "click" or "direct"
+        if not db.settingsVersion then
+            db.enabled = false -- failed sweep route must be explicitly re-enabled
+            db.settingsVersion = 2
+        end
+        db.mouseButton = db.mouseButton == "Button5" and "Button5" or "Button4"
         local version, build = GetBuildInfo()
         log("SESSION version=" .. version .. " build=" .. build .. " test=0.2.0-sweep-test.1")
-        say("Ready. Hold Mouse 4 and sweep. /fvtest for help. Disable normal Forever Vanguard.")
+        say("/fv opens settings. Hold-and-sweep is experimental and starts disabled.")
     elseif event == "UPDATE_MOUSEOVER_UNIT" then poll()
     elseif event == "ADDON_ACTION_BLOCKED" or event == "ADDON_ACTION_FORBIDDEN" then
         local a = (issecretvalue and issecretvalue(arg1)) and "secret" or tostring(arg1)
         local b = (issecretvalue and issecretvalue(arg2)) and "secret" or tostring(arg2)
         log(event .. " addon=" .. a .. " function=" .. b)
         say(event .. " (recorded)")
+        if pending then
+            db.enabled = false; held = false
+            log("AUTO-STOP after blocked action during probe attempt")
+            say("Sweep stopped after blocked action. /fv opens settings and report.")
+        end
     else log(event) end
 end)
 for _, event in ipairs({"ADDON_LOADED", "UPDATE_MOUSEOVER_UNIT", "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "RAID_TARGET_UPDATE"}) do
@@ -116,12 +127,46 @@ for n = 1, 8 do
     b:EnableMouse(false)
     buttons[n] = b
 end
+local settings
+local function openSettings()
+    if not settings then
+        settings = CreateFrame("Frame", "ForeverVanguardSettings", UIParent, "BasicFrameTemplateWithInset")
+        settings:SetSize(470, 345); settings:SetPoint("CENTER"); settings:SetFrameStrata("DIALOG")
+        settings.TitleText:SetText("Forever Vanguard")
+        local status = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        status:SetPoint("TOPLEFT", 20, -45)
+        settings.status = status
+        local function button(label, y, command)
+            local b = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
+            b:SetSize(420, 28); b:SetPoint("TOPLEFT", 20, y); b:SetText(label)
+            b:SetScript("OnClick", function()
+                SlashCmdList.FVSWEEPTEST(command)
+                status:SetText((db.enabled and "Enabled" or "Disabled") .. " | " .. (db.reverse and "Star first" or "Skull first") .. " | " .. (db.mouseButton or "Button4"))
+            end)
+        end
+        button("Enable experimental hold-and-sweep", -75, "on")
+        button("Disable marking", -110, "off")
+        button("Switch hold button: Mouse 4 / Mouse 5", -145, "button")
+        button("Reverse icon order: Skull first / Star first", -180, "order")
+        button("Reset icon reservations (out of combat)", -215, "reset")
+        button("Copy diagnostic report", -250, "report")
+    end
+    settings.status:SetText((db.enabled and "Enabled" or "Disabled") .. " | " .. (db.reverse and "Star first" or "Skull first") .. " | " .. (db.mouseButton or "Button4"))
+    settings:Show()
+end
 SLASH_FVSWEEPTEST1 = "/fvtest"
+SLASH_FVSWEEPTEST2 = "/fv"
+SLASH_FVSWEEPTEST3 = "/forevervanguard"
 SlashCmdList.FVSWEEPTEST = function(command)
     if not db then return end
     command = command:lower():match("^%s*(.-)%s*$")
-    if command == "direct" or command == "click" then
+    if command == "" or command == "settings" or command == "options" then openSettings()
+    elseif command == "direct" or command == "click" then
         db.route = command; seen = {}; log("ROUTE " .. command); say("Route: " .. command)
+    elseif command == "button" then
+        db.mouseButton = db.mouseButton == "Button5" and "Button4" or "Button5"
+        held = false; seen = {}; say("Hold button: " .. db.mouseButton)
+    elseif command == "order" then db.reverse = not db.reverse; seen = {}
     elseif command == "off" then db.enabled = false; poll(); say("Disabled.")
     elseif command == "on" then db.enabled = true; say("Enabled.")
     elseif command == "reset" then

@@ -1,3 +1,5 @@
+> **0.2.2:** `/fv` opens settings again. Hold-and-sweep starts disabled following a live Blizzard-only action block; that restriction is unresolved. See [release notes](publishing/release-0.2.2.md).
+
 > **0.2.1 Alpha:** The current experimental hold-Mouse-4 sweep package is built with `experiments/hold-sweep/build.py` and installs as `ForeverVanguard`. See [release notes](publishing/release-0.2.1.md). Live Forever marking remains unverified. The main addon directory below retains the previous click-per-mob implementation while the experiment is evaluated.
 
 # Forever Vanguard

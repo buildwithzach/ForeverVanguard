@@ -1,3 +1,9 @@
+## 0.2.2
+
+- Restore /fv settings access with mouse-button and icon-order controls.
+- Start experimental marking disabled and stop after a blocked action.
+- Preserve disabled state across reloads. Blizzard-only action restriction remains unresolved.
+
 ## 0.2.1
 
 - Package the experimental hold-Mouse-4 sweep probe under the normal Forever Vanguard name.

@@ -12,7 +12,7 @@ class Probe(unittest.TestCase):
   l.execute('''
 M.secret={}; M.time=0; M.calls=0
 function GetTime() return M.time end
-function IsMouseButtonDown(button) assert(button=='Button4'); return M.down end
+function IsMouseButtonDown(button) return M.down end
 function UnitGUID(u) return M.units[u] and M.units[u].guid end
 function UnitIsDeadOrGhost(u) return M.units[u] and M.units[u].dead end
 function SetRaidTarget(u,n)
@@ -29,8 +29,19 @@ function step(guid, down)
 end
 ''')
   l.execute(SOURCE.read_text(),'ForeverVanguardSweepTest')
-  g=l.globals();g.M.block=blocked;g.M.emit('ADDON_LOADED','ForeverVanguardSweepTest')
+  g=l.globals();g.M.block=blocked;g.M.emit('ADDON_LOADED','ForeverVanguardSweepTest');g.SlashCmdList.FVSWEEPTEST('on')
   return l,g
+ def test_fv_opens_settings_and_disable_button_works(self):
+  l,g=self.client();self.assertEqual(g.SLASH_FVSWEEPTEST2,'/fv')
+  g.SlashCmdList.FVSWEEPTEST('');panel=g.ForeverVanguardSettings
+  self.assertTrue(panel.shown)
+  for f in g.M.frames.values():
+   if f.text=='Disable marking':f.scripts.OnClick()
+  self.assertFalse(g.ForeverVanguardSweepTestDB.enabled)
+  panel.Hide(panel);g.SlashCmdList.FVSWEEPTEST('options');self.assertTrue(panel.shown)
+ def test_block_stops_further_attempts(self):
+  l,g=self.client(True);g.step('A',True);g.step('B',True)
+  self.assertEqual(g.M.calls,1);self.assertFalse(g.ForeverVanguardSweepTestDB.enabled)
  def test_sustained_sweep_combat_and_release(self):
   l,g=self.client();g.step('A',False);self.assertEqual(g.M.calls,0)
   g.step('A',True);g.step('A',True);g.M.combat=True;g.step('B',True)
