@@ -13,6 +13,7 @@ class VanguardTests(unittest.TestCase):
   l.execute('''
 M.secret={}; M.time=0; M.clicks=0
 function UnitGUID(u) return M.units[u] and M.units[u].guid end
+function UnitIsDeadOrGhost(u) return M.units[u] and M.units[u].dead end
 function IsMouseButtonDown(b) return M.down==b end
 local methods=getmetatable(UIParent).__index
 function methods:SetScrollChild(child) self.child=child end
@@ -36,6 +37,28 @@ end
   g.M.emit('ADDON_LOADED','ForeverVanguard')
   self.l,self.lua,self.g=l,l,g
   return g
+ def test_parser_failure_does_not_reject_attackable_living_unit(self):
+  for expression in ["return 'none'", "error('unavailable')", "return M.secret"]:
+   g=self.client(setup='function SecureCmdOptionParse() '+expression+' end')
+   g.step('A','Button4');self.assertEqual(g.M.clicks,1)
+ def test_transient_eligibility_failure_retries_same_hover_without_repress(self):
+  g=self.client();self.l.execute("function UnitCanAttack() return M.attackable end")
+  g.M.attackable=False;g.step('A','Button4');g.step('A','Button4')
+  self.assertEqual(g.M.clicks,0)
+  skips=[line for line in g.ForeverVanguardCycleDB.log.values() if 'not attackable' in line]
+  self.assertEqual(len(skips),1)
+  g.M.attackable=True;g.step('A','Button4');self.assertEqual(g.M.clicks,1)
+ def test_dead_friendly_and_secret_units_are_not_marked(self):
+  for override in ["function UnitIsDeadOrGhost() return true end",
+                   "function UnitCanAttack() return false end",
+                   "function UnitCanAttack() return M.secret end",
+                   "function UnitIsDeadOrGhost() return M.secret end",
+                   "function UnitExists() return M.secret end"]:
+   g=self.client(setup=override);g.step('A','Button4');self.assertEqual(g.M.clicks,0)
+ def test_no_guid_reason_is_reported_once(self):
+  g=self.client();g.step(None,'Button4');g.step(None,'Button4')
+  logs=list(g.ForeverVanguardCycleDB.log.values())
+  self.assertEqual(sum('No mouseover GUID.' in line for line in logs),1)
  def test_fv_and_report(self):
   g=self.client();self.assertEqual(g.SLASH_FOREVERVANGUARD1,'/fv')
   g.SlashCmdList.FOREVERVANGUARD('');self.assertEqual(g.M.openCategory,123)

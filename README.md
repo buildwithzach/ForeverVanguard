@@ -1,6 +1,10 @@
 # Forever Vanguard
 
-Local development version 0.2.3 for WoW Forever 1.60.1. This is the actual `ForeverVanguard` addon, with its normal `/fv` settings. It has not been uploaded.
+Local development version 0.2.4 for WoW Forever 1.60.1. This is the actual `ForeverVanguard` addon, with its normal `/fv` settings. It has not been uploaded.
+
+## 0.2.4 correction
+
+The supplied 0.2.3 log detected held input but showed eligibility skips and no secure attempts. This version replaces the macro-condition eligibility parser with explicit existence, attackability and life-state checks. It retries a temporarily ineligible mob during the same hold instead of prematurely marking it seen. Missing or secret mouseover GUIDs now produce a distinct diagnostic reason. This does not establish why the original condition failed in the client or prove native secure-action permission.
 
 ## Controls
 

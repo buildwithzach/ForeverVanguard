@@ -86,8 +86,16 @@ end
 -- RAID_TARGET_UPDATE event: another player may have caused it.
 function V.Plan()
   if not ForeverVanguardDB.enabled then return nil, "Marking is disabled." end
-  local ok, unit = public(SecureCmdOptionParse, "[@mouseover,harm,nodead] mouseover; none")
-  if not ok or unit ~= "mouseover" then return nil, "Hover a living enemy first." end
+  local unit = "mouseover"
+  local existsKnown, exists = public(UnitExists, unit)
+  if not existsKnown then return nil, "Mouseover existence is unreadable." end
+  if not exists then return nil, "No mouseover unit." end
+  local attackKnown, attackable = public(UnitCanAttack, "player", unit)
+  if not attackKnown then return nil, "Mouseover hostility is unreadable." end
+  if not attackable then return nil, "Mouseover is not attackable." end
+  local deadKnown, dead = public(UnitIsDeadOrGhost, unit)
+  if not deadKnown then return nil, "Mouseover life state is unreadable." end
+  if dead then return nil, "Mouseover is dead." end
   if IsInRaid() and not (UnitIsGroupLeader("player") or UnitIsGroupAssistant("player")) then
     return nil, "Raid marking requires leader or assistant."
   end
@@ -157,16 +165,29 @@ function V.Poll()
   end
   if down ~= V.held then
     V.held = down
-    if down then V.seen = {}; V.Log("HOLD start route=secure") else V.Log("HOLD end") end
+    if down then V.seen = {}; V.skipReasons = {}; V.lastHoverReason = nil; V.Log("HOLD start route=secure") else V.Log("HOLD end") end
   end
   if not down then return end
   local known, guid = public(UnitGUID, "mouseover")
-  if not known or not guid or V.seen[guid] then return end
-  V.seen[guid] = true
+  if not known or not guid then
+    local reason = known and "No mouseover GUID." or "Mouseover GUID is unreadable."
+    if V.lastHoverReason ~= reason then V.Log("SKIP " .. reason); V.lastHoverReason = reason end
+    message(reason)
+    return
+  end
+  V.lastHoverReason = nil
+  if V.seen[guid] then return end
   local icon, reason = V.Plan()
-  if not icon then message(reason); V.Log("SKIP " .. reason); return end
+  if not icon then
+    message(reason)
+    if V.skipReasons[guid] ~= reason then V.Log("SKIP " .. reason); V.skipReasons[guid] = reason end
+    return
+  end
   completeAttempt()
   if not ForeverVanguardDB.enabled then return end
+  -- Remember only dispatched units, so a transient eligibility failure can recover
+  -- while the same button and mouseover remain held.
+  V.seen[guid] = true
   ForeverVanguardCycleDB.reserved[icon] = true
   V.pending = {guid = guid, icon = icon, at = GetTime()}
   V.Log("ATTEMPT route=secure icon=" .. icon)
@@ -301,7 +322,7 @@ local function build()
   end
   V.button = V.buttons[1]
   local _, clientBuild = GetBuildInfo()
-  V.Log("SESSION 0.2.3 build=" .. clientBuild .. " route=secure")
+  V.Log("SESSION 0.2.4 build=" .. clientBuild .. " route=secure")
   settings(); V.ApplyBinding()
 end
 local version, _, _, interface = GetBuildInfo()

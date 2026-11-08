@@ -1,3 +1,11 @@
+## 0.2.4 — local only
+
+- Replace the macro-condition eligibility gate with explicit, secret-safe unit checks and specific failure reasons.
+- Record a mob as seen only when dispatching a marking request, allowing recovery from temporary ineligibility during the same hold.
+- Explain missing/hidden GUID skips and suppress unchanged repeated skip messages.
+- Preserve normal /fv settings, existing-mark protection, reservation logic and automatic stop on blocked actions.
+- 21 local source/package tests; actual native marking remains unverified. The supplied 0.2.3 log contained no marking attempts, so it does not prove this secure route was rejected.
+
 ## 0.2.3 — local only
 
 - Integrate the secure-button hold-and-sweep path into the actual addon and normal /fv settings.
