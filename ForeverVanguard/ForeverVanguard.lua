@@ -155,7 +155,7 @@ function V.Poll()
   if V.pending and GetTime() - V.pending.at >= 0.2 then completeAttempt() end
   local key = V.activeKey
   local down = false
-  if ForeverVanguardDB.enabled and key and not V.capturing and not V.panel:IsShown() then
+  if ForeverVanguardDB.enabled and key and not V.capturing and not V.panel:IsVisible() then
     local number = key:match("BUTTON(%d)$")
     local known, pressed = public(IsMouseButtonDown, "Button" .. number)
     down = known and pressed
@@ -322,7 +322,7 @@ local function build()
   end
   V.button = V.buttons[1]
   local _, clientBuild = GetBuildInfo()
-  V.Log("SESSION 0.2.4 build=" .. clientBuild .. " route=secure")
+  V.Log("SESSION 0.2.5 build=" .. clientBuild .. " route=secure")
   settings(); V.ApplyBinding()
 end
 local version, _, _, interface = GetBuildInfo()

@@ -1,3 +1,9 @@
+## 0.2.5 — local only
+
+- Fix hold detection staying paused after the parent settings window closes: check actual canvas visibility rather than its independent shown flag.
+- Add a regression that fails on 0.2.4 with a shown child under a hidden parent and passes with the correction.
+- 22 local source/package tests pass. Native secure marking remains unverified.
+
 ## 0.2.4 — local only
 
 - Replace the macro-condition eligibility gate with explicit, secret-safe unit checks and specific failure reasons.

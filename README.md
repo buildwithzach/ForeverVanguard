@@ -1,6 +1,10 @@
 # Forever Vanguard
 
-Local development version 0.2.4 for WoW Forever 1.60.1. This is the actual `ForeverVanguard` addon, with its normal `/fv` settings. It has not been uploaded.
+Local development version 0.2.5 for WoW Forever 1.60.1. This is the actual `ForeverVanguard` addon, with its normal `/fv` settings. It has not been uploaded.
+
+## 0.2.5 correction
+
+Closing the parent Settings window can leave the addon canvas flagged as shown while it is no longer visible. The hold-input gate now uses actual visibility, so closing settings no longer silently prevents hold detection in that state. A regression test reproduces the failure on 0.2.4 and passes after this change. This is a local reproduction, not confirmation of in-game marking permission.
 
 ## 0.2.4 correction
 

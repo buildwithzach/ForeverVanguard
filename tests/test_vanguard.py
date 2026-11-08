@@ -109,6 +109,15 @@ end
   self.assertEqual(g.M.clicks,0)
   g.ForeverVanguard.capturing=False;g.ForeverVanguard.panel.Show(g.ForeverVanguard.panel)
   g.step('A','Button4');self.assertEqual(g.M.clicks,0)
+ def test_closing_settings_parent_resumes_hold_detection(self):
+  g=self.client();self.l.execute("M.settingsWindow=CreateFrame('Frame',nil,UIParent); ForeverVanguard.panel.parent=M.settingsWindow")
+  g.SlashCmdList.FOREVERVANGUARD('')
+  g.step('A','Button4');self.assertEqual(g.M.clicks,0)
+  g.M.settingsWindow.Hide(g.M.settingsWindow)
+  self.assertTrue(g.ForeverVanguard.panel.IsShown(g.ForeverVanguard.panel))
+  self.assertFalse(g.ForeverVanguard.panel.IsVisible(g.ForeverVanguard.panel))
+  g.step('A',None);g.step('A','Button4')
+  self.assertEqual(g.M.clicks,1)
  def test_off_command_stops(self):
   g=self.client();g.SlashCmdList.FOREVERVANGUARD('off');g.step('A','Button4')
   self.assertEqual(g.M.clicks,0)

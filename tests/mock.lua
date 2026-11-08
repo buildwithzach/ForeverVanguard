@@ -37,6 +37,10 @@ function methods:Show() self:SetShown(true) end
 function methods:Hide() self:SetShown(false) end
 function methods:GetParent() return self.parent end
 function methods:IsShown() return self.shown end
+function methods:IsVisible()
+ if not self.shown then return false end
+ return not self.parent or self.parent:IsVisible()
+end
 function methods:SetEnabled(v) self.enabled=v end
 function methods:LockHighlight() self.highlight=true end
 function methods:UnlockHighlight() self.highlight=false end

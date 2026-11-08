@@ -1,0 +1,33 @@
+{
+  "version": "0.2.5",
+  "curseforge_file_id": 9512839,
+  "download_url": "https://edge.forgecdn.net/files/9512/839/ForeverVanguard-0.2.5.zip",
+  "archive_sha256": "9e8682b4ce5b50c5edc6239802e3a0959a3db8d4049241a747cfa5b2fe58d798",
+  "files": {
+    "ForeverVanguard/AbilityActions.lua": {
+      "repository_path": "ForeverVanguard/AbilityActions.lua",
+      "sha256": "5362fd8c0db7b9d46c819b4a42822b2a3d3c6d1bb14d14179d4f375c585847ca"
+    },
+    "ForeverVanguard/CHANGELOG.md": {
+      "repository_path": "CHANGELOG.md",
+      "sha256": "1c9ae0e2710cf5f970f24add0abaa2ab67416d4125ef41a7c5677aff133a47dd"
+    },
+    "ForeverVanguard/ForeverVanguard.lua": {
+      "repository_path": "ForeverVanguard/ForeverVanguard.lua",
+      "sha256": "0e87df8dbff5f0599181f9b7d941b1acd84715f346f9e6ad85e61c3f5cbf78f6"
+    },
+    "ForeverVanguard/ForeverVanguard.toc": {
+      "repository_path": "ForeverVanguard/ForeverVanguard.toc",
+      "sha256": "788650da672307b3fd024c9b0f6ab53d2cfe146c05052fc2c40ed8246f4c068b"
+    },
+    "ForeverVanguard/README.md": {
+      "repository_path": "README.md",
+      "sha256": "c22a1e3abe6f231bf7af8467c57346990f54115eecc3402a19ade34bd7428ceb"
+    },
+    "ForeverVanguard/TESTING.md": {
+      "repository_path": "TESTING.md",
+      "sha256": "7defaf67f0b91af5ab7c68b8258904cbd14db66b818567273c46badc7acd8609"
+    }
+  },
+  "validation": "22 source/extracted mocked tests passed. Native marking acceptance remains unverified."
+}
